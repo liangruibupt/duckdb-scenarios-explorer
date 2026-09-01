@@ -1,0 +1,5 @@
+bedrock-agentcore>=1.22
+duckdb>=1.0
+boto3>=1.34
+pandas>=2.0
+pyarrow>=14.0

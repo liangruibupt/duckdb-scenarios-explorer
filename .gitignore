@@ -1,0 +1,13 @@
+# venvs / python
+.venv/
+__pycache__/
+*.pyc
+
+# large data (fetch via get_data.sh)
+data/
+*.parquet
+*.duckdb
+
+# generated artifacts
+report.html
+*_preview.png

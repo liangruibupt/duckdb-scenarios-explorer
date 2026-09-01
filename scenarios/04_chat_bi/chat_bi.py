@@ -41,16 +41,21 @@ Dimension zones(LocationID INT, Borough, Zone) joined on PULocationID=LocationID
 def rule_plan(q: str) -> str | None:
     """Map common question shapes to SQL. Returns None if unrecognized."""
     s = q.lower().strip()
+
+    def has(*words) -> bool:
+        # whole-word match so 'mean' does not fire on 'meaning', etc.
+        return any(re.search(rf"\b{re.escape(w)}\b", s) for w in words)
+
     base = f"read_parquet('{DATA}')"
     clean = (f"(SELECT * FROM {base} WHERE trip_distance>0 AND fare_amount>0 "
              f"AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01' "
              f"AND tpep_pickup_datetime < TIMESTAMP '2024-02-01')")
 
-    if "how many" in s and ("trip" in s or "ride" in s):
+    if has("how") and "many" in s and has("trip", "trips", "ride", "rides"):
         return f"SELECT count(*) AS trips FROM {clean}"
 
-    if ("busiest" in s or "top" in s) and ("zone" in s or "pickup" in s or "borough" in s):
-        col = "z.Borough" if "borough" in s else "z.Zone"
+    if has("busiest", "top") and has("zone", "zones", "pickup", "borough"):
+        col = "z.Borough" if has("borough") else "z.Zone"
         n = _num(s, default=10)
         return (f"SELECT {col} AS name, count(*) AS trips "
                 f"FROM {clean} c JOIN read_csv('{ZONES}') z "
@@ -62,17 +67,17 @@ def rule_plan(q: str) -> str | None:
         return (f"SELECT hour(tpep_pickup_datetime) AS hr, {expr} AS {metric} "
                 f"FROM {clean} GROUP BY hr ORDER BY hr")
 
-    if "average" in s or "avg" in s or "mean" in s:
+    if has("average", "avg", "mean"):
         metric, expr = _metric(s)
         return f"SELECT {expr} AS {metric} FROM {clean}"
 
-    if "payment" in s:
+    if has("payment"):
         return (f"SELECT CASE payment_type WHEN 1 THEN 'card' WHEN 2 THEN 'cash' "
                 f"ELSE 'other' END AS payment, count(*) AS trips "
                 f"FROM {clean} GROUP BY payment ORDER BY trips DESC")
 
-    if "revenue" in s or "total" in s:
-        if "day" in s:
+    if has("revenue", "total"):
+        if has("day", "daily"):
             return (f"SELECT tpep_pickup_datetime::DATE AS day, "
                     f"round(sum(total_amount),0) AS revenue "
                     f"FROM {clean} GROUP BY day ORDER BY day")

@@ -10,7 +10,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 04 | **Chat BI (NL → SQL)** | NL questions → DuckDB SQL over Parquet; rule-based planner + Bedrock LLM hook; DuckDB as ad-hoc OLAP accelerator | ✅ implemented |
 | 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | ✅ implemented |
 | 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
-| 07 | **Multi-agent OLAP on AgentCore** | Where to install DuckDB for cost/perf when many agents query it (embedded per-agent vs shared query service) | ✅ documented ([DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md)) |
+| 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared hive-partitioned Parquet; concurrent multi-reader fan-out, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
 
 ---
 
@@ -104,12 +104,15 @@ only when you need governed metrics — don't stack redundant engines.
 - The point: native NDJSON analytics with no parse/ETL step and no log service —
   the pattern for ad-hoc "why was it slow at 14:03?" over a log dump on disk/S3.
 
-## 07 — Multi-agent OLAP on AgentCore ✅ (design)
+## 07 — Multi-agent OLAP on AgentCore ✅ (implemented + design)
 
-`scenarios/07_multiagent_agentcore/DESIGN.md` — a full inspect → plan → implement
-→ test design doc. Recommendation: **DuckDB embedded per-agent** (bundled in the
-AgentCore Runtime image / Lambda layer, zero idle cost, scales with the agents)
-reading shared **hive-partitioned Parquet on S3** via `httpfs`, over a shared
-DuckDB service (reintroduces a server, idle cost, single-writer bottleneck).
-Writes route to OLTP (Aurora) or a single-writer append-Parquet path. Add Athena
-only past single-node scale; add a semantic layer only for governed metrics.
+`scenarios/07_multiagent_agentcore/` — design doc `DESIGN.md` (inspect → plan →
+implement → test) plus a runnable demo `agent_query.py`: each `Agent` embeds its
+own DuckDB connection over a shared hive-partitioned Parquet lake; `fan_out()`
+runs N agents concurrently and shows they return identical results with no
+contention (multi-reader), plus a partition-pruned per-day read. Local lake by
+default (offline/CI), or point at S3 with `DATA_ROOT=s3://bucket/prefix`.
+Recommendation: **DuckDB embedded per-agent** + hive-partitioned **Parquet on
+S3** via `httpfs`, over a shared DuckDB service. Writes route to OLTP (Aurora) or
+a single-writer append-Parquet path. Add Athena only past single-node scale; add
+a semantic layer only for governed metrics.

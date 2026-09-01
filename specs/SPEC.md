@@ -83,3 +83,18 @@ Invariants:
 - The per-minute `time_bucket` rollup places the highest-p95 minute inside the
   injected spike window (14:10–14:13).
 - Overall `pct_success` is within [0, 100] and p50 ≤ p99.
+
+## 07 — Multi-agent OLAP on AgentCore  *(offline demo + design)*
+
+Design doc: `scenarios/07_multiagent_agentcore/DESIGN.md`.
+Runnable demo: `agent_query.py` — a local stand-in for AgentCore where each
+`Agent` embeds its own DuckDB connection over a shared hive-partitioned Parquet
+lake (local by default, S3 via `DATA_ROOT`).
+
+Invariants (offline, self-contained):
+- Each `Agent` holds an independent DuckDB connection (no shared writable file).
+- Concurrent fan-out of N agents over the read-only lake returns **identical**
+  results for every agent (multi-reader, no contention).
+- Aggregate is correct: total event count across regions equals rows written.
+- Partition-pruned read (`WHERE dt = <day>`) returns exactly that day's rows via
+  `hive_partitioning=true`.

@@ -11,3 +11,9 @@ data/
 # generated artifacts
 report.html
 *_preview.png
+
+# scenario-generated demo/test artifacts
+scenarios/**/out/
+scenarios/**/raw_events.csv
+scenarios/**/access.ndjson
+*.ndjson

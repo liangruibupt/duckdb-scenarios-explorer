@@ -1,0 +1,62 @@
+default_agent: duckdb_chatbi
+agents:
+  duckdb_chatbi:
+    name: duckdb_chatbi
+    language: python
+    node_version: '20'
+    entrypoint: /home/ubuntu/workplace/duckdb-scenarios-explorer/deploy/agent/app.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: docker
+    source_path: /home/ubuntu/workplace/duckdb-scenarios-explorer/deploy/agent
+    aws:
+      execution_role: arn:aws:iam::747411437379:role/duckdb-chatbi-runtime-exec
+      execution_role_auto_create: false
+      account: '747411437379'
+      region: us-east-1
+      ecr_repository: 747411437379.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-duckdb_chatbi
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: duckdb_chatbi-QlFnrNF2b8
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_chatbi-QlFnrNF2b8
+      agent_session_id: b02c555b-c439-4503-880a-0b6fbcfdb0a5
+    codebuild:
+      project_name: bedrock-agentcore-duckdb_chatbi-builder
+      execution_role: arn:aws:iam::747411437379:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-7dcee2aa3f
+      source_bucket: bedrock-agentcore-codebuild-sources-747411437379-us-east-1
+    memory:
+      mode: STM_ONLY
+      memory_id: duckdb_chatbi_mem-p0BrHlGPhs
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:memory/duckdb_chatbi_mem-p0BrHlGPhs
+      memory_name: duckdb_chatbi_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

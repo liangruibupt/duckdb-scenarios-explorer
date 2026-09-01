@@ -8,8 +8,8 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 02 | **httpfs / S3 remote Parquet** | Query Parquet on S3/HTTP without downloading; partition pruning; hive-partitioned globs | ✅ implemented |
 | 03 | **CSV → Parquet ETL** | DuckDB as a lightweight ETL engine: type/clean messy CSV, `COPY ... TO` partitioned Parquet, then query | ✅ implemented |
 | 04 | **Chat BI (NL → SQL)** | NL questions → DuckDB SQL over Parquet; rule-based planner + Bedrock LLM hook; DuckDB as ad-hoc OLAP accelerator | ✅ implemented |
-| 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | 💡 idea |
-| 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | 💡 idea |
+| 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | ✅ implemented |
+| 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
 | 07 | **Multi-agent OLAP on AgentCore** | Where to install DuckDB for cost/perf when many agents query it (embedded per-agent vs shared query service) | 💡 idea (design) |
 
 ---
@@ -78,6 +78,31 @@ the bytes scanned. This is the pattern an embedded per-agent DuckDB uses.
 Architecture (from the thread): NL→DuckDB→Parquet-on-S3 is the cheapest start;
 add Athena only when data outgrows single-node, and a semantic layer (Cube/dbt)
 only when you need governed metrics — don't stack redundant engines.
+
+## 05 — SQL over Pandas DataFrames ✅
+
+`scenarios/05_sql_over_dataframes/`
+
+- `sql_over_df.py` — DuckDB queries an in-memory Pandas DataFrame **by variable
+  name** with no copy and no load step: aggregate over a DataFrame, DataFrame ⨝
+  DataFrame, a window function (share-of-customer + rank), a DataFrame ⨝
+  Parquet-on-disk join in one query, and the result handed back as both Pandas
+  (`.df()`) and Arrow (`.arrow()`). Self-contained (builds its own frames; the
+  Parquet join uses scenario 01's taxi file if present).
+- The point: stay in Python, reach for SQL exactly where Pandas gets awkward.
+
+## 06 — Log / observability analytics ✅
+
+`scenarios/06_log_analytics/`
+
+- `log_analytics.py` — self-contained. Synthesizes a realistic NDJSON access log
+  (200k lines, per-endpoint latency/error profiles, an injected 14:10–14:13
+  latency spike), then `read_json_auto` + SQL: **p50/p95/p99 latency per
+  endpoint** (`approx_quantile`), **4xx/5xx error rate per endpoint**,
+  **per-minute `time_bucket` rollup** (the spike surfaces at ~550ms p95 vs ~140ms
+  baseline), and an overall SLO summary.
+- The point: native NDJSON analytics with no parse/ETL step and no log service —
+  the pattern for ad-hoc "why was it slow at 14:03?" over a log dump on disk/S3.
 
 ## 07 — Multi-agent OLAP on AgentCore 💡
 

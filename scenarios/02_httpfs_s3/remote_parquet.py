@@ -24,7 +24,7 @@ import duckdb
 BUCKET = "cdh-ingest-demo"
 PREFIX = "duckdb-demo/nyc_taxi"
 REGION = "us-east-1"
-GLOB = f"s3://{BUCKET}/{PREFIX}/*/*.parquet"          # year=YYYY/month=MM/*.parquet
+GLOB = f"s3://{BUCKET}/{PREFIX}/**/*.parquet"        # year=YYYY/month=MM/*.parquet
 
 
 def s3_has_data() -> bool:

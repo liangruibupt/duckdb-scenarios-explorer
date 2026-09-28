@@ -5,22 +5,29 @@ raw Parquet glob is immutable and catalog-less. This pass adds the table-format
 capabilities across the repo. AI-DLC contract for `tests/`.
 
 ## Engine facts (probed, DuckDB 1.5.5)
-- `iceberg` extension = **reader** (`iceberg_scan`, `iceberg_snapshots`,
-  `iceberg_metadata`) — reads existing Iceberg tables (incl. S3 Tables / Glue
-  REST) but does not create/write them from DuckDB.
+- `iceberg` extension, **two modes**:
+  - `iceberg_scan('<metadata location>')` is **read-only** — scans an existing
+    Iceberg table's files; it does not create or mutate a table.
+  - `ATTACH '<arn>' AS c (TYPE iceberg, ENDPOINT_TYPE s3_tables)` attaches the
+    **S3 Tables Iceberg REST catalog**, which **does support writes** from DuckDB:
+    `CREATE TABLE … AS`, `INSERT` (each a new snapshot) — verified live by
+    creating + appending `nyc.trips` on S3 Tables (no Spark/Glue). Update/delete
+    depend on the catalog/extension version; treat as append-first.
+  - `iceberg_snapshots` / `iceberg_metadata` read the snapshot history.
 - `ducklake` = a full **read/write** Iceberg-style table format (SQL catalog +
   Parquet data), fully local. It gives ACID snapshots, **time-travel**
   (`AT (VERSION => n)`), **schema evolution** (`ALTER TABLE … ADD COLUMN`), and
   **row-level UPDATE/DELETE** — the differentiators, testable OFFLINE.
 
-So: **offline** capability demos use DuckLake; **cloud** interop (read a real
-Iceberg table on S3 Tables via `iceberg_scan` / Iceberg REST) is a documented,
-credentialed path.
+So: **offline** capability demos use DuckLake (full read/write incl.
+update/delete); **cloud** uses a real **S3 Tables** Iceberg table — DuckDB both
+**writes** it (create + append via the REST catalog) and reads it in place.
 
 ## Test tiers
 - **offline**: DuckLake create/insert/update/delete/alter/time-travel; iceberg
   extension loads; governance over an iceberg-shaped source. CI-run.
-- **cloud/iceberg-gated**: `iceberg_scan` of a real S3 Tables/Glue table — skipped
+- **cloud/iceberg-gated**: create/append + read a real S3 Tables Iceberg table
+  via the REST catalog, and `iceberg_scan` of a metadata location — skipped
   unless `RUN_ICEBERG_TESTS=1`.
 
 ---

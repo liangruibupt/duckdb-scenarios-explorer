@@ -20,7 +20,9 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # prefer prebuilt wheels and retry: a pypi timeout must not fall back
+          # to compiling pandas/numpy from source (Cython build breaks on CI).
+          pip install --only-binary=:all: --retries 5 --timeout 60 -r requirements.txt
       - name: Run offline + planner tests
         # data-gated (01, 04-exec) auto-skip without the Parquet; s3-gated (02)
         # auto-skips unless RUN_S3_TESTS=1. This job runs the always-on tier.

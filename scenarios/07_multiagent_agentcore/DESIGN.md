@@ -61,6 +61,14 @@ analytical (OLAP) queries over a shared dataset, cheaply and fast.
   pattern. Read-only Parquet has no writer-contention problem.
 - **Hive-partition the Parquet** (`year=/month=/…`) so agents scan only the
   partitions a query needs (scenario 02 proves the pruning).
+- **Prefer an Iceberg table (S3 Tables) once ANY agent writes.** Raw Parquet is
+  fine while the fleet is read-only, but the moment the data is appended/updated
+  concurrently, a raw glob has no atomic commit or snapshot isolation and readers
+  can see half-written state. An **Iceberg table on S3** gives ACID snapshots,
+  concurrent-writer safety and time-travel while staying the same read-in-place
+  layer every agent scans via the `iceberg` extension (scenarios 02/09). This is
+  why the aws-sample makes S3 Tables / Iceberg REST a first-class path, not raw
+  Parquet only.
 - **Never share one writable DuckDB file across agents.** Route writes to a real
   OLTP store (Aurora — the pattern from the cod-agent project) or have a *single*
   writer append immutable Parquet files that readers then pick up.

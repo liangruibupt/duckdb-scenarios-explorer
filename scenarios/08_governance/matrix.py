@@ -26,6 +26,7 @@ PATHS = {
     "s3t":  "trips",                       # s3 tables alias (same logical name)
     "glue": "trips",                       # glue catalog leg
     "dl":   "trips",                       # ducklake leg
+    "iceberg": "trips",                    # iceberg (S3 Tables / Glue REST) leg
 }
 
 SHAPES = {

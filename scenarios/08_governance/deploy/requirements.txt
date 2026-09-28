@@ -1,0 +1,4 @@
+bedrock-agentcore>=1.22
+duckdb>=1.0
+boto3>=1.34
+sqlglot>=25.0

@@ -1,0 +1,62 @@
+default_agent: duckdb_governed
+agents:
+  duckdb_governed:
+    name: duckdb_governed
+    language: python
+    node_version: '20'
+    entrypoint: /home/ubuntu/workplace/duckdb-scenarios-explorer/scenarios/08_governance/deploy/app.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: docker
+    source_path: /home/ubuntu/workplace/duckdb-scenarios-explorer/scenarios/08_governance/deploy
+    aws:
+      execution_role: arn:aws:iam::747411437379:role/duckdb-governed-runtime-exec
+      execution_role_auto_create: false
+      account: '747411437379'
+      region: us-east-1
+      ecr_repository: 747411437379.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-duckdb_governed
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: duckdb_governed-jUL2s6GPOv
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_governed-jUL2s6GPOv
+      agent_session_id: 40aeaf75-b89a-4721-9f20-3eb32c20f45c
+    codebuild:
+      project_name: bedrock-agentcore-duckdb_governed-builder
+      execution_role: arn:aws:iam::747411437379:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-98c6ae8e9b
+      source_bucket: bedrock-agentcore-codebuild-sources-747411437379-us-east-1
+    memory:
+      mode: STM_ONLY
+      memory_id: duckdb_governed_mem-lL99ZUDyjO
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:memory/duckdb_governed_mem-lL99ZUDyjO
+      memory_name: duckdb_governed_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

@@ -98,9 +98,23 @@ def handle(payload: dict, tenant: str | None, role: str | None) -> dict:
 
 
 def _claims_from_context(context) -> tuple[str | None, str | None]:
-    """Pull custom:tenant / custom:role from the AgentCore request context JWT."""
+    """Read custom:tenant / custom:role from the caller's JWT.
+
+    The AgentCore inbound authorizer has ALREADY validated the token before this
+    code runs; the Authorization header is on the request-header allowlist, so we
+    decode the (verified) JWT payload here to read the identity claims.
+    """
+    import base64
+    import json as _json
     try:
-        claims = (getattr(context, "request", {}) or {}).get("claims", {})
+        headers = getattr(context, "request_headers", None) or {}
+        auth = headers.get("Authorization") or headers.get("authorization") or ""
+        if not auth.lower().startswith("bearer "):
+            return None, None
+        token = auth.split(None, 1)[1]
+        payload_b64 = token.split(".")[1]
+        payload_b64 += "=" * (-len(payload_b64) % 4)          # pad base64url
+        claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
         return claims.get("custom:tenant"), claims.get("custom:role")
     except Exception:
         return None, None

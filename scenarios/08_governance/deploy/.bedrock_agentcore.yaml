@@ -32,7 +32,7 @@ agents:
     bedrock_agentcore:
       agent_id: duckdb_governed-jUL2s6GPOv
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_governed-jUL2s6GPOv
-      agent_session_id: 40aeaf75-b89a-4721-9f20-3eb32c20f45c
+      agent_session_id: null
     codebuild:
       project_name: bedrock-agentcore-duckdb_governed-builder
       execution_role: arn:aws:iam::747411437379:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-98c6ae8e9b
@@ -44,7 +44,7 @@ agents:
       memory_name: duckdb_governed_mem
       event_expiry_days: 30
       first_invoke_memory_check_done: true
-      was_created_by_toolkit: true
+      was_created_by_toolkit: false
     identity:
       credential_providers: []
       workload: null
@@ -54,8 +54,14 @@ agents:
       signing_algorithm: ES384
       issuer_url: null
       duration_seconds: 300
-    authorizer_configuration: null
-    request_header_configuration: null
+    authorizer_configuration:
+      customJWTAuthorizer:
+        discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Z0mDSj06D/.well-known/openid-configuration
+        allowedAudience:
+        - 1h2m2mob3lomip7v8hqmrnv692
+    request_header_configuration:
+      requestHeaderAllowlist:
+      - Authorization
     oauth_configuration: null
     api_key_env_var_name: null
     api_key_credential_provider_name: null

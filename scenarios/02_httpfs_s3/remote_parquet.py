@@ -27,19 +27,30 @@ PREFIX = "duckdb-demo/nyc_taxi"
 REGION = "us-east-1"
 GLOB = f"s3://{BUCKET}/{PREFIX}/**/*.parquet"        # year=YYYY/month=MM/*.parquet
 
-# Path B (Iceberg): the SAME logical table exposed as an Iceberg table on S3
-# Tables / a metadata location. Set S3_TABLES_ICEBERG to a metadata path (or an
-# S3 Tables ARN via the iceberg REST catalog) to exercise it. Mirrors the
-# aws-sample's path A (raw Parquet) vs path B (Iceberg) — same query, same
-# governance, different resolution.
+# Path B (Iceberg): the SAME logical table exposed as an Iceberg table. Two ways
+# to point at it:
+#   S3_TABLES_ARN=<bucket arn>  -> attach the S3 Tables Iceberg REST catalog and
+#                                  read <ICEBERG_TABLE> (default nyc.trips)
+#   S3_TABLES_ICEBERG=<loc>     -> read a plain metadata location via iceberg_scan
+# Mirrors the aws-sample's path A (raw Parquet) vs path B (Iceberg): same query,
+# same governance, different resolution.
 ICEBERG_LOC = os.environ.get("S3_TABLES_ICEBERG", "")
+S3_TABLES_ARN = os.environ.get("S3_TABLES_ARN", "")
+ICEBERG_TABLE = os.environ.get("ICEBERG_TABLE", "nyc.trips")
 
 
-def iceberg_source() -> str | None:
-    """Return an iceberg_scan(...) source when an Iceberg location is set."""
-    if not ICEBERG_LOC:
-        return None
-    return f"iceberg_scan('{ICEBERG_LOC}')"
+def iceberg_source(con=None) -> str | None:
+    """Return an Iceberg source expression when a location/catalog is set.
+    For S3 Tables, attach the REST catalog on `con` and return the qualified
+    table name; for a metadata location, return an iceberg_scan(...) call."""
+    if S3_TABLES_ARN and con is not None:
+        con.execute("INSTALL aws; LOAD aws; INSTALL iceberg; LOAD iceberg;")
+        con.execute(f"ATTACH IF NOT EXISTS '{S3_TABLES_ARN}' AS s3tbl "
+                    f"(TYPE iceberg, ENDPOINT_TYPE s3_tables)")
+        return f"s3tbl.{ICEBERG_TABLE}"
+    if ICEBERG_LOC:
+        return f"iceberg_scan('{ICEBERG_LOC}')"
+    return None
 
 
 def s3_has_data() -> bool:
@@ -92,19 +103,20 @@ def main() -> None:
           "the bytes the queries needed.")
 
     # Path B (Iceberg) -- same logical table, resolved through the Iceberg table
-    # format instead of a raw glob. Runs only when S3_TABLES_ICEBERG is set.
-    ib = iceberg_source()
+    # format instead of a raw glob. Runs only when an Iceberg source is set.
+    ib = iceberg_source(con)
     if ib:
-        con.execute("INSTALL iceberg; LOAD iceberg;")
-        timed(con, "Path B: same aggregate over the ICEBERG table (iceberg_scan)",
+        if ICEBERG_LOC and not S3_TABLES_ARN:
+            con.execute("INSTALL iceberg; LOAD iceberg;")
+        timed(con, "Path B: same aggregate over the ICEBERG table",
               f"""SELECT payment_type, count(*) trips
                   FROM {ib} WHERE fare_amount > 0
                   GROUP BY payment_type ORDER BY trips DESC""")
         print("Path A (raw Parquet) and Path B (Iceberg) return the same answer "
               "under the same governance -- only how the name resolves differs.")
     else:
-        print("(Path B skipped -- set S3_TABLES_ICEBERG=<metadata/ARN> to query "
-              "the same data through an Iceberg table.)")
+        print("(Path B skipped -- set S3_TABLES_ARN=<bucket arn> [ICEBERG_TABLE] "
+              "or S3_TABLES_ICEBERG=<metadata> to query the same data as Iceberg.)")
 
 
 if __name__ == "__main__":

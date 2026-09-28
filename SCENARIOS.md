@@ -11,6 +11,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | ✅ implemented |
 | 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
 | 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared hive-partitioned Parquet; concurrent multi-reader fan-out, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
+| 08 | **Governed data agent (RLS/CLS + context)** | sqlglot RLS/CLS rewrite before the engine (fail-closed) + cost gate + owner-bound result handles + history compression | ✅ implemented + tested |
 
 ---
 
@@ -116,3 +117,27 @@ Recommendation: **DuckDB embedded per-agent** + hive-partitioned **Parquet on
 S3** via `httpfs`, over a shared DuckDB service. Writes route to OLTP (Aurora) or
 a single-writer append-Parquet path. Add Athena only past single-node scale; add
 a semantic layer only for governed metrics.
+
+## 08 — Governed data agent: RLS/CLS + context layer ✅
+
+`scenarios/08_governance/data_agent/`
+
+Brings the two layers from `aws-samples/sample-data-agent-on-duckdb` that turn a
+naive NL→SQL tool into a *governed* agent. Spec: `specs/GOVERNANCE_SPEC.md`.
+
+- `governance.py` — identity-aware **RLS/CLS rewrite before the engine** via
+  sqlglot, fail-closed: deny-all floor for an unknown principal, RLS `row_filter`
+  ANDed into every table reference, denied columns `EXCLUDE`d from `SELECT *` and
+  a **clean rejection** when named explicitly, table allow-list, SELECT-only
+  statement-shape allow-list (DML behind a `WITH` prefix refused), CTE cannot
+  shadow a governed table, host-reaching paths refused for every role.
+- `context.py` — **cost gate** (a raw partitioned source without a predicate on
+  its partition column is refused; over-wide partition spans refused),
+  **owner-bound result handles** (results over `MAX_RESULT_ROWS` become session
+  temp tables `_r_<n>`; a foreign handle is refused before the engine), and
+  **history compression** (old materialized-result blobs become one-line pointers
+  once the model window passes `COMPRESSION_THRESHOLD`; current turn untouched).
+- Tests: 42 offline, incl. a **persona × statement-shape governance matrix**
+  whose expected outcome is derived from the policy (admin passes unchanged,
+  analyst gets RLS+CLS on every shape, junior's denied column is refused on every
+  shape).

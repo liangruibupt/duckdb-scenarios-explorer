@@ -3,4 +3,5 @@ pandas>=2.0
 pyarrow>=14.0
 numpy>=1.24
 boto3>=1.34
+sqlglot>=25.0
 pytest>=8.0

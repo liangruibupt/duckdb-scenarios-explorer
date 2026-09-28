@@ -1,9 +1,10 @@
 # Why Iceberg can do what raw Parquet cannot
 
-One sentence: **Parquet is "files"; Iceberg is "a layer of atomically-swappable
-metadata that points at those files."** Every capability below falls out of that
-one design — a versioned, statistics-carrying metadata layer that *defines which
-files make up the table*, instead of letting a glob guess it at query time.
+One sentence: **Parquet defines how data is stored *inside one file*; Iceberg
+defines *which files — and which rows — make up a table at a given version*.**
+The Parquet files underneath stay immutable; Iceberg adds indirection
+(versioned metadata), statistics, and an atomic commit protocol on top. Every
+capability below falls out of that one design.
 
 ## The two things being compared
 
@@ -54,18 +55,22 @@ layout — a rewrite. Column mapping is by name/order with no stable id.
 
 ### 3. Metadata-level pruning → skip files without LISTing S3
 The manifest stores each data file's **min/max stats and partition values**. For
-`WHERE dt = '2024-01-01' AND amount > 1000`, the engine **reads the manifest**
-(a small file) and skips any data file whose `amount` max is below the threshold
-— without opening it. It reads the **metadata inventory**, not an S3 `LIST`.
+`WHERE dt = '2024-01-01' AND amount > 1000`, the **query engine reads the
+manifest** (a small file) and skips any data file whose `amount` max is below the
+threshold — without opening it. It reads the **metadata inventory**, not an S3
+`LIST`. (The catalog only gives the authoritative entry point — *which* metadata
+is current; the engine does the pruning from that metadata, layer by layer:
+manifest-list summary → manifest file stats → Parquet internal metadata.)
 
 **Raw Parquet is slower:** the glob must first **LIST** S3 to expand the prefix
 into a file list (slow and per-request-billed at thousands of prefixes), then
 open each Parquet footer for stats. Iceberg precomputes "which files + each
 file's stats" into the manifest, skipping both the LIST and the per-file probe.
 
-### 4. Row-level DELETE / UPDATE / MERGE → impossible on raw Parquet
-Parquet files are **immutable** (changing one row means rewriting the whole
-file). Iceberg expresses delete/update on immutable files two ways:
+### 4. Row-level DELETE / UPDATE / MERGE
+The physical Parquet files stay immutable; what changes is the table's *logical*
+result. Parquet itself provides no table-level update protocol — Iceberg supplies
+one on top. Two strategies:
 - **copy-on-write (CoW):** rewrite the affected files into new files; the new
   snapshot points at them; old files stay for history snapshots.
 - **merge-on-read (MoR):** don't rewrite; write a small **delete file** ("row N
@@ -119,3 +124,89 @@ engines let you set this per table (`write.delete.mode` = `copy-on-write` /
 `merge-on-read`). Scenario 09's `cow_vs_mor.py` shows the file-count signature of
 each: after a delete, CoW's data `file_count` changes while MoR adds a
 `delete_file_count`.
+
+---
+
+## Appendix — worked examples
+
+Concrete illustrations for each principle. The read path of a catalog-backed
+Iceberg table:
+
+```
+Catalog        : which metadata file `orders` currently points to
+   ↓
+Table metadata : schema, partition specs, current + historical snapshots
+   ↓
+Snapshot → manifest list : which manifests this version needs
+   ↓
+Manifests      : data/delete file lists, partition values, column stats
+   ↓
+Parquet data files + applicable delete records
+```
+
+**The key rule:** a file existing in a directory does not mean it belongs to the
+table; being *referenced by a committed snapshot* is what makes it part of that
+version. Everything below follows from this.
+
+### 1. Atomic commit → ACID / concurrency / time-travel
+Current snapshot `S0 → [A.parquet, B.parquet]`. An update that replaces `B` with
+`B2`:
+1. write `B2.parquet`; 2. write new metadata `S1 → [A.parquet, B2.parquet]`;
+3. **atomically flip** the table's current-metadata pointer S0→S1.
+- Before commit new readers see S0; after, S1; a query already reading S0 keeps
+  reading S0. No "B deleted, B2 half-written" state; a failed write leaves
+  unreferenced orphan files, not a broken table.
+- **Concurrency = conditional swap** (compare-and-swap): "only flip to M1 if
+  current is still the M0 I started from." Two writers off M0 — A commits first;
+  B finds the version moved, must re-read and re-validate, then retry (or fail on
+  a real conflict). Atomic swap prevents half-commits/overwrites; conflict
+  validation decides whether concurrent ops merge safely (not all do).
+- **Time-travel** comes for free: S0 and its files are retained, so "read current
+  → follow S1", "read history → follow S0", with unchanged files/manifests shared
+  across snapshots. Caveat: once old snapshots + their files are expired, that
+  version is no longer readable; this is *single-table* commit, not cross-table.
+
+### 2. Evolution without rewrite
+- **Schema:** a column's identity is its **field-id**, not its name/position.
+  `field-id 17 name customer_name` → rename → `field-id 17 name buyer_name`; old
+  files still map field-17 data to the current name, no rewrite. Drop-then-add a
+  same-named column → the new one gets a new id, so old data is never mistaken
+  for it. (Add/drop/rename/reorder + supported type promotions — not arbitrary
+  type casts — are metadata-only.)
+- **Partition:** specs are versioned. `spec 0 = month(event_time)`,
+  `spec 1 = day(event_time)` coexist; the engine derives predicates per spec (old
+  files pruned by month, new by day). Changing the spec needs no rewrite; giving
+  *old* data the new layout's performance still does.
+
+### 3. Metadata pruning
+Raw glob `s3://bucket/orders/*.parquet` must discover matching files then read
+their metadata. Iceberg already recorded, per file, path + partition values +
+column stats:
+```
+A.parquet : customer_id ∈ [1, 100]
+B.parquet : customer_id ∈ [500, 900]
+```
+`WHERE customer_id = 700` → the manifest alone proves A can't match, so A is
+never opened. Pruning cascades: manifest-list summary → skip manifests; manifest
+stats → skip data files; Parquet internal metadata → locate within a file. Not
+zero S3 requests and not always faster — with missing stats or heavily
+overlapping ranges, pruning degrades.
+
+### 4. Row-level ops — two strategies
+- **Copy-on-write:** `A.parquet=[Alice,Bob,Carol]`, delete Bob → write
+  `A2.parquet=[Alice,Carol]`; old snapshot → A, new snapshot → A2 (A untouched,
+  just unreferenced). Cost: deleting one row can rewrite its whole file.
+- **Merge-on-read:** data files untouched; write a **delete record** ("mask this
+  row of A.parquet", or an equality delete "mask customer_id=42 in applicable
+  files"). Readers apply deletes; Iceberg scopes them by partition/sequence-number
+  so a later re-inserted same-value row isn't wrongly masked. `UPDATE` = mask old
+  row + insert new row in one atomic commit; `MERGE` = engine computes the
+  inserts/deletes/replacements then commits per protocol.
+
+**One line:** Iceberg defines the table's logical state with versioned metadata
+and publishes it with an atomic commit; the data files stay immutable. So the
+real comparison is not *Iceberg vs Parquet* but **"a bare set of Parquet files"
+vs "a Parquet table managed by Iceberg."**
+
+*Sources: Apache Iceberg spec, reliability, evolution & spark-writes docs;
+Apache Parquet file-format metadata docs.*

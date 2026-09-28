@@ -180,6 +180,20 @@ Engine note (DuckDB 1.5.5): `iceberg` is a reader (`iceberg_scan`,
 `iceberg_snapshots`); `ducklake` is the read/write format used for the offline
 differentiator demos.
 
+### Why it works (mechanism, with real output)
+
+See **[docs/WHY_ICEBERG.md](scenarios/09_iceberg/docs/WHY_ICEBERG.md)** — the
+*why* behind each capability: Iceberg is an atomically-swappable, stat-carrying
+metadata layer over immutable Parquet files. Runnable demonstrations:
+- `principles.py` — real output for each of the four principles: time-travel
+  (current 999 vs AS-OF 200), schema evolution (4 cols now vs 3 in the old
+  snapshot), pushdown pruning, and a row-level delete whose **file signature**
+  (`delete_files 0→1`, data files unchanged) shows merge-on-read.
+- `cow_vs_mor.py` — copy-on-write vs merge-on-read by observable signature, and
+  how to choose (CoW for read-heavy, MoR for write/upsert-heavy + compaction).
+- `pruning_benchmark.py` — metadata pruning vs a raw-Parquet glob's O(files)
+  LIST; honest about local disk hiding the gap and where the real S3 win is.
+
 ### Learning point — DuckLake managed-table vs Amazon S3 Tables
 
 Both are **Iceberg-style table formats** (a catalog + snapshots + ACID on top of

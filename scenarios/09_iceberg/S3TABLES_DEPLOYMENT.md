@@ -20,6 +20,9 @@ iceberg, ENDPOINT_TYPE s3_tables`) from the taxi Parquet — no Spark, no Glue j
 - `scenarios/02_httpfs_s3/remote_parquet.py` **path B** (`S3_TABLES_ARN=… ICEBERG_TABLE=nyc.trips`)
   — the same aggregate over the Iceberg table (319 ms), beside path A (raw
   Parquet). Same answer, same governance, different resolution.
+- `scenarios/07_multiagent_agentcore/fanout_s3tables.py` — **8 concurrent agents**,
+  each embedding its own DuckDB, read the managed table in parallel → identical
+  results, no contention (concurrent-reader safety on a real Iceberg table).
 
 ## How to run against it
 ```

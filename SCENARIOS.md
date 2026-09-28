@@ -10,7 +10,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 04 | **Chat BI (NL → SQL)** | NL questions → DuckDB SQL over Parquet; rule-based planner + Bedrock LLM hook; DuckDB as ad-hoc OLAP accelerator | ✅ implemented |
 | 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | ✅ implemented |
 | 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
-| 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared hive-partitioned Parquet; concurrent multi-reader fan-out, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
+| 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared read layer (Parquet, and Iceberg on S3 Tables); concurrent multi-reader fan-out proven local AND against a live managed Iceberg table, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
 | 08 | **Governed data agent (RLS/CLS + context + semantic)** | sqlglot RLS/CLS rewrite (fail-closed) + cost gate + result handles + history compression + govern→cost→execute pipeline + registered-metric semantic layer; wired into chat_bi | ✅ implemented + tested |
 | 09 | **Iceberg / DuckLake table format** | ACID snapshots, time-travel (`AT VERSION`), schema evolution, row-level UPDATE/DELETE — what raw Parquet cannot do; local via DuckLake, cloud via `iceberg_scan` (S3 Tables) | ✅ implemented + tested |
 
@@ -179,3 +179,28 @@ Amazon S3 Tables (Iceberg REST), read via the `iceberg` extension's
 Engine note (DuckDB 1.5.5): `iceberg` is a reader (`iceberg_scan`,
 `iceberg_snapshots`); `ducklake` is the read/write format used for the offline
 differentiator demos.
+
+### Learning point — DuckLake managed-table vs Amazon S3 Tables
+
+Both are **Iceberg-style table formats** (a catalog + snapshots + ACID on top of
+Parquet files). They differ in *where the catalog lives and who operates it* —
+this repo uses DuckLake as the **offline stand-in** and S3 Tables as the **live
+cloud** table, so the same concepts are provable in CI and demonstrated for real.
+
+| | **DuckLake** | **Amazon S3 Tables** |
+|---|---|---|
+| Catalog | a local SQL DB file (`*.ducklake`) | AWS-managed **Iceberg REST** catalog |
+| Data files | Parquet on local disk (or S3) | Parquet in the S3 Tables bucket |
+| Runs where | in-process, **offline**, no AWS | AWS service (needs an account) |
+| Table format | DuckLake's own (Iceberg-compatible direction) | **Apache Iceberg** (the standard) |
+| Writes from DuckDB | `CREATE`/`INSERT`/`UPDATE`/`DELETE`/`ALTER` | `CREATE TABLE AS` + `INSERT` via the REST catalog (append-first); `iceberg_scan` on a bare metadata location is read-only |
+| Maintenance | you compact | AWS auto-compacts |
+| Multi-engine | DuckDB-centric today | any Iceberg reader (Athena, Spark, Trino, DuckDB) |
+| Cost | free | S3 Tables storage + maintenance |
+| Used in this repo for | offline differentiator demos + CI (09/03/06 tests) | the live table (`09/cloud_s3tables.py`, `02` path B) |
+
+Rule of thumb: **DuckLake** to prove the *capabilities* cheaply and offline;
+**S3 Tables** when you want a real, multi-engine, AWS-managed Iceberg table that
+Athena/Spark/Trino can also read. Same query, same governance (scenario 08's
+matrix proves the rewrite is identical across raw/s3t/glue/dl/iceberg paths);
+only how the table name resolves to files differs.

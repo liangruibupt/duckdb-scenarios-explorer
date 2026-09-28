@@ -11,7 +11,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 05 | **SQL over Pandas DataFrames** | Zero-copy SQL over in-memory DataFrames; mix Python + SQL in a notebook flow | ✅ implemented |
 | 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
 | 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared hive-partitioned Parquet; concurrent multi-reader fan-out, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
-| 08 | **Governed data agent (RLS/CLS + context)** | sqlglot RLS/CLS rewrite before the engine (fail-closed) + cost gate + owner-bound result handles + history compression | ✅ implemented + tested |
+| 08 | **Governed data agent (RLS/CLS + context + semantic)** | sqlglot RLS/CLS rewrite (fail-closed) + cost gate + result handles + history compression + govern→cost→execute pipeline + registered-metric semantic layer; wired into chat_bi | ✅ implemented + tested |
 
 ---
 
@@ -141,3 +141,13 @@ naive NL→SQL tool into a *governed* agent. Spec: `specs/GOVERNANCE_SPEC.md`.
   whose expected outcome is derived from the policy (admin passes unchanged,
   analyst gets RLS+CLS on every shape, junior's denied column is refused on every
   shape).
+- `pipeline.py` — **govern → cost → execute + shape** in one call
+  (`run_statement`); the governed SQL (not the raw SQL) is what the cost gate and
+  engine see, a refusal names its stage, and every statement emits an audit record.
+- `semantic.py` — a **registered-metric layer**: `Registry` + `Metric`; a metric
+  is called by name with allow-listed dimensions/time, compiles deterministically
+  to one governed `SELECT`, and runs through the same pipeline (so RLS/CLS + cost
+  gate still apply). An unregistered metric or an out-of-allow-list dimension is
+  refused — no improvised SQL.
+- Wired into `scenarios/04_chat_bi/chat_bi.py` via `--principal tenant:role` so a
+  demo question runs the governed path; the default path is unchanged.

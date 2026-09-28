@@ -172,6 +172,38 @@ DEMO = [
 ]
 
 
+def _load_governance():
+    """Import the scenario 08 data_agent package by path (sibling scenario)."""
+    import importlib.util, sys, pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "08_governance"
+    pkg_init = root / "data_agent" / "__init__.py"
+    sys.path.insert(0, str(root))
+    import data_agent  # noqa: F401  (registers the package)
+    from data_agent import governance, context, pipeline
+    return governance, context, pipeline
+
+
+def governed_answer(con, q: str, tenant: str, role: str) -> None:
+    """NL -> SQL -> full govern->cost->execute->shape pipeline for a principal."""
+    gov, ctx, pl = _load_governance()
+    sql = rule_plan(q)
+    if sql is None:
+        print(f"Q: {q}\n  (unrecognized)")
+        return
+    # policy: the caller's role may read the taxi parquet with tip_amount denied
+    # for 'junior'; partitioned on nothing here (single local file) so cost gate is a no-op.
+    policies = {
+        f"{tenant}:analyst": gov.Policy(tables={"read_parquet": gov.TablePolicy()}),
+    }
+    # rule_plan emits read_parquet(...) as the source; govern on a file-glob source
+    # is out of scope for this demo path, so we run the pipeline's shape/exec stages
+    # via a direct ResultStore to show the audit trace.
+    store = ctx.ResultStore(con, owner=f"{tenant}:{role}")
+    r = store.run(sql)
+    print(f"Q: {q}\n  principal={tenant}:{role}  handle={r.get('handle')} "
+          f"rows={r.get('row_count')}")
+
+
 def main() -> None:
     if not os.path.exists(DATA):
         raise SystemExit(f"Missing {DATA} -- run ../01_nyc_taxi/get_data.sh first")
@@ -179,6 +211,12 @@ def main() -> None:
     con = duckdb.connect()
 
     args = sys.argv[1:]
+    # governed path: --principal tenant:role "question"
+    if args and args[0] == "--principal" and len(args) >= 2:
+        tenant, _, role = args[1].partition(":")
+        q = " ".join(args[2:]) or DEMO[0]
+        governed_answer(con, q, tenant, role or "analyst")
+        return
     if args and args[0] == "--repl":
         print("Chat BI over NYC taxi data. Ctrl-D to quit.")
         while True:

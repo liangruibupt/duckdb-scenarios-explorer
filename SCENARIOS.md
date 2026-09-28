@@ -12,6 +12,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 06 | **Log / observability analytics** | Read NDJSON/CSV logs, p50/p95/p99 latency, error rates, time-bucket rollups | ✅ implemented |
 | 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared hive-partitioned Parquet; concurrent multi-reader fan-out, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
 | 08 | **Governed data agent (RLS/CLS + context + semantic)** | sqlglot RLS/CLS rewrite (fail-closed) + cost gate + result handles + history compression + govern→cost→execute pipeline + registered-metric semantic layer; wired into chat_bi | ✅ implemented + tested |
+| 09 | **Iceberg / DuckLake table format** | ACID snapshots, time-travel (`AT VERSION`), schema evolution, row-level UPDATE/DELETE — what raw Parquet cannot do; local via DuckLake, cloud via `iceberg_scan` (S3 Tables) | ✅ implemented + tested |
 
 ---
 
@@ -151,3 +152,30 @@ naive NL→SQL tool into a *governed* agent. Spec: `specs/GOVERNANCE_SPEC.md`.
   refused — no improvised SQL.
 - Wired into `scenarios/04_chat_bi/chat_bi.py` via `--principal tenant:role` so a
   demo question runs the governed path; the default path is unchanged.
+
+## 09 — Iceberg / DuckLake table format ✅
+
+`scenarios/09_iceberg/tables.py` — proves the capabilities a raw Parquet glob
+cannot give, offline via **DuckLake** (a local read/write Iceberg-style format:
+SQL catalog + Parquet data): **ACID snapshots**, **time-travel**
+(`… AT (VERSION => n)`), **schema evolution** (`ALTER TABLE … ADD COLUMN`, old
+snapshots still read), and **row-level UPDATE/DELETE**. The cloud analogue is
+Amazon S3 Tables (Iceberg REST), read via the `iceberg` extension's
+`iceberg_scan`. Spec: `specs/ICEBERG_SPEC.md`.
+
+**Iceberg pass across existing scenarios** (same spec):
+- **02** — an Iceberg access path (`iceberg_scan`) beside the raw glob
+  (`S3_TABLES_ICEBERG=…`), mirroring the aws-sample's path A/path B.
+- **03** — a DuckLake managed-table ETL target (`etl.py --target ducklake`): two
+  appends → two snapshots, each time-travellable.
+- **06** — a DuckLake log mode (`log_analytics.py --ducklake`): append pre-spike
+  then spike windows as snapshots, then "what did the table look like before the
+  14:10 spike?" via time-travel.
+- **07** — DESIGN.md updated: the shared read layer should be an Iceberg table on
+  S3 once any agent writes (ACID + snapshot isolation), not a raw glob.
+- **08** — the governance matrix gains an `iceberg` access-path column; the
+  rewrite is identical on every path (name-based, format-agnostic) — 75/75 cells.
+
+Engine note (DuckDB 1.5.5): `iceberg` is a reader (`iceberg_scan`,
+`iceberg_snapshots`); `ducklake` is the read/write format used for the offline
+differentiator demos.

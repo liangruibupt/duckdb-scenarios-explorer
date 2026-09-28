@@ -113,5 +113,57 @@ def main() -> None:
           f"({csv_sz/pq_sz:.1f}x smaller, and columnar for fast scans).")
 
 
+def load_to_ducklake(csv_path: str, catalog_dir: str) -> dict:
+    """ETL variant: clean the CSV and load it into a MANAGED table (DuckLake,
+    an Iceberg-style format). Two appends => two snapshots, each independently
+    time-travellable -- what a raw Parquet dump cannot give you. Returns a
+    summary dict for verification."""
+    import duckdb as _d
+    con = _d.connect()
+    con.execute("INSTALL ducklake; LOAD ducklake;")
+    cat = os.path.join(catalog_dir, "etl.ducklake")
+    data = os.path.join(catalog_dir, "data")
+    con.execute(f"ATTACH 'ducklake:{cat}' AS lake (DATA_PATH '{data}')")
+    con.execute("USE lake")
+    con.execute("""CREATE TABLE events (event_id BIGINT, ts TIMESTAMP,
+                   category VARCHAR, region VARCHAR, amount DECIMAL(10,2), qty INT)""")
+
+    def _clean_select(src):
+        return (f"SELECT event_id, try_cast(ts AS TIMESTAMP), lower(trim(category)), "
+                f"nullif(lower(trim(region)),''), "
+                f"try_cast(replace(amount,',','') AS DECIMAL(10,2)), qty "
+                f"FROM read_csv('{src}', header=true, "
+                f"columns={{'event_id':'BIGINT','ts':'VARCHAR','category':'VARCHAR',"
+                f"'region':'VARCHAR','amount':'VARCHAR','qty':'INTEGER'}}, "
+                f"ignore_errors=true) "
+                f"WHERE try_cast(ts AS TIMESTAMP) IS NOT NULL AND qty>0 "
+                f"AND try_cast(replace(amount,',','') AS DECIMAL(10,2)) IS NOT NULL")
+
+    # append #1
+    con.execute(f"INSERT INTO events {_clean_select(csv_path)}")
+    v1 = con.execute("SELECT max(snapshot_id) FROM ducklake_snapshots('lake')").fetchone()[0]
+    n1 = con.execute("SELECT count(*) FROM events").fetchone()[0]
+    # append #2 (same data again = a second daily batch)
+    con.execute(f"INSERT INTO events {_clean_select(csv_path)}")
+    v2 = con.execute("SELECT max(snapshot_id) FROM ducklake_snapshots('lake')").fetchone()[0]
+    n2 = con.execute("SELECT count(*) FROM events").fetchone()[0]
+    # time-travel: the table AS OF the first append has only the first batch
+    n_at_v1 = con.execute(
+        f"SELECT count(*) FROM events AT (VERSION => {v1})").fetchone()[0]
+    return {"snapshot_after_1": v1, "snapshot_after_2": v2,
+            "rows_after_1": n1, "rows_after_2": n2, "rows_at_v1": n_at_v1}
+
+
 if __name__ == "__main__":
-    main()
+    import sys, tempfile
+    if len(sys.argv) > 1 and sys.argv[1] == "--target" and sys.argv[2:3] == ["ducklake"]:
+        make_messy_csv(RAW)
+        with tempfile.TemporaryDirectory() as tmp:
+            r = load_to_ducklake(RAW, tmp)
+        print("DuckLake managed-table ETL:")
+        print(f"  after append 1: {r['rows_after_1']:,} rows (snapshot {r['snapshot_after_1']})")
+        print(f"  after append 2: {r['rows_after_2']:,} rows (snapshot {r['snapshot_after_2']})")
+        print(f"  time-travel AS OF snapshot {r['snapshot_after_1']}: "
+              f"{r['rows_at_v1']:,} rows (only the first batch)")
+    else:
+        main()

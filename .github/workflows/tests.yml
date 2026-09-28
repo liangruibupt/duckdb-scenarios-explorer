@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 这个 job 只需要读代码
+permissions:
+  contents: read
+
 jobs:
   offline:
     runs-on: ubuntu-latest

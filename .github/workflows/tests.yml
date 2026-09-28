@@ -27,3 +27,5 @@ jobs:
         # data-gated (01, 04-exec) auto-skip without the Parquet; s3-gated (02)
         # auto-skips unless RUN_S3_TESTS=1. This job runs the always-on tier.
         run: pytest -q
+      - name: Test the Dependabot auto-merge policy
+        run: node --test .github/scripts/*.test.mjs

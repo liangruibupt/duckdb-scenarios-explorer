@@ -21,18 +21,28 @@ identity, reading S3 in place via httpfs.
 - **Local (with `--as`)**, live against S3: analyst → RLS `payment_type=1`
   applied (2,319,046 of 2.87M trips); junior → CLS refusal on `tip_amount`;
   anonymous → deny-all.
-- **Cloud (`agentcore invoke`)**: with no JWT claims the principal is `anonymous`
-  and `trips` is refused at `govern` — **fail-closed in the cloud, verified**.
+- **Cloud, per-persona over the wire** (Cognito JWT → authorizer → claims):
+  - `analyst-a` → `acme:analyst`, RLS applied, **2,319,046** trips
+  - `junior-a` → `acme:junior`, **CLS refusal** on `tip_amount` at govern
+  - `admin-a` → `acme:admin`, passthrough, **2,964,624** trips
+  Same governed pipeline, three policy-correct outcomes, identity from a
+  validated JWT — not a UI toggle.
 
-## Known gap — JWT identity (the scheduling layer)
+## Identity (JWT authorizer — now live)
 
-This deploy uses AgentCore **IAM auth**, so there is no per-user JWT on the wire;
-every cloud invoke is `anonymous` → deny-all. To exercise a real persona over the
-wire, the runtime needs a **Cognito pool + `customJWTAuthorizer`** (discoveryUrl +
-allowedAudience) and `--request-header-allowlist Authorization`, with
-`custom:tenant`/`custom:role` on the ID token. That Cognito stack is the next
-piece (see aws-samples for the CDK shape). The governance/pipeline code already
-reads claims from the request context — only the authorizer + pool are missing.
+| Resource | Identifier |
+|----------|-----------|
+| Cognito user pool | `us-east-1_Z0mDSj06D` |
+| App client | `1h2m2mob3lomip7v8hqmrnv692` (secret; USER_PASSWORD_AUTH) |
+| Discovery URL | `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Z0mDSj06D/.well-known/openid-configuration` |
+| Personas | `admin-a` (acme:admin), `analyst-a` (acme:analyst), `junior-a` (acme:junior) |
+
+The runtime is configured with `customJWTAuthorizer` (discoveryUrl +
+allowedAudience = the app client id) and `--request-header-allowlist
+Authorization`. `custom:tenant`/`custom:role` ride on the **ID token**; the
+entrypoint decodes the authorizer-validated JWT to read them. Invoke over HTTPS
+with `Authorization: Bearer <IdToken>` (SigV4/IAM invoke is now refused —
+"authorization method mismatch"). Reproduce with `deploy/persona_invoke.py`.
 
 ## Cost
 
@@ -45,3 +55,5 @@ Billable while live: AgentCore Runtime + ECR + CloudWatch logs. Modest.
 3. `iam delete_role_policy PassGovernedExec` from the instance role
 4. `iam delete_role_policy duckdb-governed-exec` + `delete_role duckdb-governed-runtime-exec`
 5. CodeBuild project + log group
+6. `cognito-idp delete-user-pool --user-pool-id us-east-1_Z0mDSj06D` (removes the
+   pool, app client and persona users in one call)

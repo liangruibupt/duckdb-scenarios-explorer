@@ -1,18 +1,18 @@
 # Deployment record — scenarios 04 + 07 on AgentCore
 
 Record of the REAL deployment (the AI-DLC "test/verify" evidence for `SPEC.md`).
-Deployed 2026-09-01, account **747411437379**, region **us-east-1**.
+Deployed 2026-09-01, account **<ACCOUNT_ID>**, region **us-east-1**.
 
 ## What is live
 
 | Resource | Identifier |
 |----------|-----------|
 | AgentCore Runtime | `duckdb_chatbi-QlFnrNF2b8` |
-| Runtime ARN | `arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_chatbi-QlFnrNF2b8` |
+| Runtime ARN | `arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/duckdb_chatbi-QlFnrNF2b8` |
 | Endpoint | `.../runtime-endpoint/DEFAULT` (READY) |
 | Container image | ECR repo `bedrock-agentcore-duckdb_chatbi` (ARM64, built by CodeBuild) |
 | CodeBuild project | `bedrock-agentcore-duckdb_chatbi-builder` |
-| Runtime exec role | `arn:aws:iam::747411437379:role/duckdb-chatbi-runtime-exec` |
+| Runtime exec role | `arn:aws:iam::<ACCOUNT_ID>:role/duckdb-chatbi-runtime-exec` |
 | CloudWatch logs | `/aws/bedrock-agentcore/runtimes/duckdb_chatbi-QlFnrNF2b8-DEFAULT` |
 | Shared data (S3) | `s3://cdh-ingest-demo/duckdb-demo/nyc_taxi/year=2024/month=01/part.parquet` |
 
@@ -22,7 +22,7 @@ The Runtime embeds DuckDB and reads the S3 Parquet in place via `httpfs`
 ## IAM changes made (via boto3 — CLI IAM writes are guardrail-blocked)
 
 1. **Created role** `duckdb-chatbi-runtime-exec`
-   - trust: `bedrock-agentcore.amazonaws.com` (SourceAccount 747411437379)
+   - trust: `bedrock-agentcore.amazonaws.com` (SourceAccount <ACCOUNT_ID>)
    - inline policy `duckdb-chatbi-exec`: `s3:GetObject`/`ListBucket` on
      `cdh-ingest-demo/duckdb-demo/*`, `bedrock:InvokeModel`, logs, ECR pull.
    - policy JSON: `deploy/iam/runtime-trust-policy.json`,

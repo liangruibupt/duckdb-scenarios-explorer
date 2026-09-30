@@ -25,7 +25,7 @@
         "logs:PutLogEvents",
         "logs:DescribeLogStreams"
       ],
-      "Resource": "arn:aws:logs:us-east-1:747411437379:log-group:/aws/bedrock-agentcore/*"
+      "Resource": "arn:aws:logs:us-east-1:<ACCOUNT_ID>:log-group:/aws/bedrock-agentcore/*"
     },
     {
       "Sid": "ECRPull",

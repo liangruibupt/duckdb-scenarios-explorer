@@ -8,7 +8,7 @@ The "query the data lake without downloading it" pattern:
     columns / row groups are fetched)
   - multi-file globs and hive-partition pruning (year=/month=)
 
-Target bucket/prefix (real, account 747411437379, us-east-1):
+Target bucket/prefix (real, account <ACCOUNT_ID>, us-east-1):
     s3://cdh-ingest-demo/duckdb-demo/nyc_taxi/
 
 If the data isn't there yet, run ./seed_s3.sh once (it uploads the local taxi

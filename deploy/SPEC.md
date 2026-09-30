@@ -20,7 +20,7 @@ One AgentCore Runtime, **`duckdb_chatbi`**, whose container:
 - Output: `{"sql": "<SELECT ...>", "rows": [...], "engine": "rule|llm"}`
 - Unsupported prompt → `{"error": "...", "hint": "<supported shapes>"}`.
 
-## Infra (us-east-1, account 747411437379)
+## Infra (us-east-1, account <ACCOUNT_ID>)
 - `agent/app.py` entrypoint + `agent/requirements.txt` (duckdb, boto3,
   bedrock-agentcore).
 - `agentcore configure` → generates `.bedrock_agentcore.yaml` + Dockerfile.

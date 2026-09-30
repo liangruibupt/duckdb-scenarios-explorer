@@ -11,11 +11,11 @@ agents:
     container_runtime: docker
     source_path: /home/ubuntu/workplace/duckdb-scenarios-explorer/deploy/agent
     aws:
-      execution_role: arn:aws:iam::747411437379:role/duckdb-chatbi-runtime-exec
+      execution_role: arn:aws:iam::<ACCOUNT_ID>:role/duckdb-chatbi-runtime-exec
       execution_role_auto_create: false
-      account: '747411437379'
+      account: '<ACCOUNT_ID>'
       region: us-east-1
-      ecr_repository: 747411437379.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-duckdb_chatbi
+      ecr_repository: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-duckdb_chatbi
       ecr_auto_create: false
       s3_path: null
       s3_auto_create: false
@@ -31,16 +31,16 @@ agents:
         max_lifetime: null
     bedrock_agentcore:
       agent_id: duckdb_chatbi-QlFnrNF2b8
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_chatbi-QlFnrNF2b8
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/duckdb_chatbi-QlFnrNF2b8
       agent_session_id: b02c555b-c439-4503-880a-0b6fbcfdb0a5
     codebuild:
       project_name: bedrock-agentcore-duckdb_chatbi-builder
-      execution_role: arn:aws:iam::747411437379:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-7dcee2aa3f
-      source_bucket: bedrock-agentcore-codebuild-sources-747411437379-us-east-1
+      execution_role: arn:aws:iam::<ACCOUNT_ID>:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-7dcee2aa3f
+      source_bucket: bedrock-agentcore-codebuild-sources-<ACCOUNT_ID>-us-east-1
     memory:
       mode: STM_ONLY
       memory_id: duckdb_chatbi_mem-p0BrHlGPhs
-      memory_arn: arn:aws:bedrock-agentcore:us-east-1:747411437379:memory/duckdb_chatbi_mem-p0BrHlGPhs
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:memory/duckdb_chatbi_mem-p0BrHlGPhs
       memory_name: duckdb_chatbi_mem
       event_expiry_days: 30
       first_invoke_memory_check_done: true

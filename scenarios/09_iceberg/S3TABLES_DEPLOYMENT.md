@@ -1,12 +1,12 @@
 # Deployment record — S3 Tables Iceberg (scenarios 02 path B + 09 cloud)
 
-Created 2026-09-28, account **747411437379**, us-east-1.
+Created 2026-09-28, account **<ACCOUNT_ID>**, us-east-1.
 
 ## Live resources
 
 | Resource | Identifier |
 |----------|-----------|
-| S3 Tables bucket | `arn:aws:s3tables:us-east-1:747411437379:bucket/duckdb-scenarios-iceberg` |
+| S3 Tables bucket | `arn:aws:s3tables:us-east-1:<ACCOUNT_ID>:bucket/duckdb-scenarios-iceberg` |
 | Namespace | `nyc` |
 | Iceberg table | `nyc.trips` — 501,000 rows (500k initial + 1k appended = 2 snapshots) |
 
@@ -26,7 +26,7 @@ iceberg, ENDPOINT_TYPE s3_tables`) from the taxi Parquet — no Spark, no Glue j
 
 ## How to run against it
 ```
-export S3_TABLES_ARN=arn:aws:s3tables:us-east-1:747411437379:bucket/duckdb-scenarios-iceberg
+export S3_TABLES_ARN=arn:aws:s3tables:us-east-1:<ACCOUNT_ID>:bucket/duckdb-scenarios-iceberg
 export ICEBERG_TABLE=nyc.trips
 python scenarios/09_iceberg/cloud_s3tables.py
 python scenarios/02_httpfs_s3/remote_parquet.py     # now runs path B too

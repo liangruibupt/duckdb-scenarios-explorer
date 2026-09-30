@@ -1,14 +1,14 @@
 # Deployment record — scenario 08 governed data agent
 
-Deployed 2026-09-28, account **747411437379**, us-east-1.
+Deployed 2026-09-28, account **<ACCOUNT_ID>**, us-east-1.
 
 ## Live resources
 
 | Resource | Identifier |
 |----------|-----------|
 | Runtime | `duckdb_governed-jUL2s6GPOv` |
-| Runtime ARN | `arn:aws:bedrock-agentcore:us-east-1:747411437379:runtime/duckdb_governed-jUL2s6GPOv` |
-| Exec role | `arn:aws:iam::747411437379:role/duckdb-governed-runtime-exec` (S3 read + Bedrock + logs + ECR) |
+| Runtime ARN | `arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/duckdb_governed-jUL2s6GPOv` |
+| Exec role | `arn:aws:iam::<ACCOUNT_ID>:role/duckdb-governed-runtime-exec` (S3 read + Bedrock + logs + ECR) |
 | ECR image | `bedrock-agentcore-duckdb_governed` (ARM64, CodeBuild) |
 | Data | `s3://cdh-ingest-demo/duckdb-demo/nyc_taxi/**/*.parquet` |
 

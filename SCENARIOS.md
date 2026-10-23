@@ -13,6 +13,9 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 07 | **Multi-agent OLAP on AgentCore** | Embedded-per-agent DuckDB + shared read layer (Parquet, and Iceberg on S3 Tables); concurrent multi-reader fan-out proven local AND against a live managed Iceberg table, partition pruning | ✅ implemented + [DESIGN.md](scenarios/07_multiagent_agentcore/DESIGN.md) |
 | 08 | **Governed data agent (RLS/CLS + context + semantic)** | sqlglot RLS/CLS rewrite (fail-closed) + cost gate + result handles + history compression + govern→cost→execute pipeline + registered-metric semantic layer; wired into chat_bi | ✅ implemented + tested |
 | 09 | **Iceberg / DuckLake table format** | ACID snapshots, time-travel (`AT VERSION`), schema evolution, row-level UPDATE/DELETE — what raw Parquet cannot do; local via DuckLake, cloud via `iceberg_scan` (S3 Tables) | ✅ implemented + tested |
+| 10 | **Aurora PostgreSQL data-lake query (embedded DuckDB)** | AWS GA 2026-09-30: DuckDB embedded *inside Aurora* unions live OLTP rows with Iceberg/Parquet in S3 in one SQL, no reverse-ETL; offline stand-in + real `aurora_analytics` flow | ✅ implemented + tested |
+| 11 | **DuckDB-on-Glue 6.0 ETL → S3 Tables Iceberg** | DuckDB as the Glue 6.0 transform engine (no Spark): clean/cast → append to a managed Iceberg table (snapshots + time-travel); same SQL offline (DuckLake) and on S3 Tables | ✅ implemented + tested |
+| 12 | **DynamoDB zero-ETL → Iceberg → DuckDB** | Zero-ETL replicates DynamoDB (via PITR) into Iceberg on S3 Tables; DuckDB serves analytics in a Lambda; models the attribute-flattening + a read-only engine lockdown | ✅ implemented + tested |
 
 ---
 
@@ -218,3 +221,76 @@ Rule of thumb: **DuckLake** to prove the *capabilities* cheaply and offline;
 Athena/Spark/Trino can also read. Same query, same governance (scenario 08's
 matrix proves the rewrite is identical across raw/s3t/glue/dl/iceberg paths);
 only how the table name resolves to files differs.
+
+## 10 — Aurora PostgreSQL data-lake query (embedded DuckDB) ✅
+
+`scenarios/10_aurora_pg_datalake/` · spec: `specs/AWS_DUCKDB_SPEC.md`
+
+On **2026-09-30** AWS made DuckDB embedded *inside Amazon Aurora PostgreSQL* GA
+(17.11+/18.6+): query live operational rows (incl. uncommitted writes) together
+with Apache Iceberg/Parquet in S3, S3 Tables, or the Glue Data Catalog — in one
+PostgreSQL statement, no reverse-ETL
+([announcement](https://aws.amazon.com/blogs/aws/amazon-aurora-postgresql-now-supports-direct-querying-of-apache-iceberg-and-parquet-data-in-your-data-lake/)).
+
+- `datalake_query.py` — **offline stand-in**: one embedded DuckDB UNIONs a small
+  `recent_transactions` table (last 7 days, the OLTP "hot" side) with a 5-year
+  Parquet `transaction_history` "lake", and JOINs live rows to a lake-derived
+  per-category historical average (the "enrich a transaction with context" use
+  case). Self-contained; `seed()` sizes are parameterized for fast tests.
+- `cloud_aurora.py` — the **real** flow against an Aurora cluster:
+  `CREATE EXTENSION aurora_analytics`, `CREATE FOREIGN TABLE … ()` (empty column
+  list ⇒ Aurora auto-reads the schema from Parquet/Iceberg metadata), the unified
+  UNION query, and per-query stats via `aurora_analytics_stat_statements()`.
+  Needs psycopg + `PG*` env + an IAM role carrying the `AuroraAnalytics` feature.
+- Tests: 6 offline invariants (lake bigger than OLTP; 7-day window; UNION spans
+  both branches; `LIMIT 15` + date-DESC order; enrichment `delta = amount −
+  hist_avg`).
+
+The point: the reverse-ETL pipeline that used to copy history into the OLTP
+database is gone — Aurora runs this exact DuckDB engine under the hood.
+
+## 11 — DuckDB-on-Glue 6.0 ETL → S3 Tables Iceberg ✅
+
+`scenarios/11_glue_duckdb_etl/` · spec: `specs/AWS_DUCKDB_SPEC.md`
+
+AWS's Oct-2026 guidance: for scheduled SQL transforms, **DuckDB on AWS Glue 6.0**
+is a lightweight, low-cost alternative to a Spark cluster
+([article](https://aws-news.com/article/2026-10-06-cost-effective-etl-with-duckdb-and-amazon-s3-tables-on-aws-glue)).
+
+- `glue_etl.py` — **offline**: a shared `transform_sql()` (clean/cast/compute
+  `revenue`) run as two "job runs" that CREATE then INSERT into a **DuckLake**
+  managed table — each append its own snapshot, time-travellable. The same SQL
+  you deploy to Glue unchanged.
+- `cloud_glue_s3tables.py` — imports the **same** `transform_sql()` and runs it
+  against a real **S3 Tables** Iceberg table (ATTACH the REST catalog; CREATE on
+  first run, INSERT after). No Spark; S3 Tables auto-compacts.
+- Tests: 6 offline invariants (subtractive clean; `revenue = round(units·price)`;
+  one snapshot per run; time-travel to run-1 = day-1 rows; normalized text).
+
+Portability is the point: develop and CI-test the job's SQL locally, deploy the
+identical SQL to a single Glue 6.0 worker.
+
+## 12 — DynamoDB zero-ETL → Iceberg → DuckDB ✅
+
+`scenarios/12_dynamodb_zero_etl/` · spec: `specs/AWS_DUCKDB_SPEC.md`
+
+A **zero-ETL** integration replicates a DynamoDB table (from PITR backups, so the
+table is unaffected) into Iceberg on **S3 Tables** on a refresh interval; a
+DuckDB-in-Lambda function serves ad-hoc SQL over it behind an IAM function URL
+([blog](https://aws.amazon.com/blogs/database/run-duckdb-analytics-on-your-amazon-dynamodb-data-with-zero-etl/)).
+
+- `ddb_analytics.py` — **offline**: synthesize DynamoDB items *with* type
+  descriptors (`{"S":…}` / `{"N":…}`), model the zero-ETL **flattening** (unwrap
+  to native typed values; lowercase names — `PK`→`pk`), land them in a DuckLake
+  managed table, then run the blog's revenue-by-category query + order-volume-by-
+  hour + status-mix.
+- `cloud_ddb_lambda.py` — attach the real zero-ETL S3 Tables catalog `READ_ONLY`
+  with the AWS sample's **exact DuckDB lockdown** (`disabled_filesystems`,
+  `lock_configuration`, no community extensions). Works as a local client or as
+  the Lambda handler body. Deploy the integration from
+  [aws-dynamodb-examples/…/ddb-duckdb-analytics](https://github.com/aws-samples/aws-dynamodb-examples/tree/master/infrastructure_as_code/cdk/ddb-duckdb-analytics).
+- Tests: 7 offline invariants (descriptors unwrapped; names lowercased; integral
+  `N`→`int`; typed landed columns; per-category revenue sums to the total).
+
+The operational table keeps serving single-digit-ms traffic; analytics run on the
+replicated Iceberg copy — the same copy Athena/Redshift/EMR/Spark can also read.

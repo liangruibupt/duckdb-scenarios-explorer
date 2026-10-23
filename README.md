@@ -58,7 +58,10 @@ scenarios/
   07_multiagent_agentcore/ embedded-per-agent DuckDB + shared S3 layer (DESIGN + fan-out)
   08_governance/          RLS/CLS rewrite + cost gate + result handles + semantic + matrix
   09_iceberg/             Iceberg/DuckLake: snapshots, time-travel, CoW vs MoR, WHY_ICEBERG.md
-specs/                    per-scenario acceptance criteria (SPEC / GOVERNANCE / PIPELINE / ICEBERG)
+  10_aurora_pg_datalake/  Aurora PostgreSQL embedded-DuckDB: live OLTP + Iceberg/Parquet lake in one SQL
+  11_glue_duckdb_etl/     DuckDB-on-Glue 6.0 ETL -> managed Iceberg table on S3 Tables (no Spark)
+  12_dynamodb_zero_etl/   DynamoDB zero-ETL -> Iceberg on S3 Tables -> DuckDB analytics (Lambda)
+specs/                    per-scenario acceptance criteria (SPEC / GOVERNANCE / PIPELINE / ICEBERG / AWS_DUCKDB)
 tests/                    offline / data-gated / s3-gated pytest suite (CI-run)
 requirements.txt
 SCENARIOS.md
@@ -72,3 +75,17 @@ SCENARIOS.md
 - [Apache Iceberg spec](https://iceberg.apache.org/spec) · [evolution](https://iceberg.apache.org/docs/latest/evolution) · [reliability](https://iceberg.apache.org/docs/latest/reliability)
   — the table-format mechanism behind scenario 09 (see
   [WHY_ICEBERG.md](scenarios/09_iceberg/docs/WHY_ICEBERG.md)).
+
+### AWS × DuckDB integrations (scenarios 10–12)
+
+Following the DuckLabs acquisition (effective 2026-09-01), AWS is embedding
+DuckDB across its data services. These scenarios mirror three such launches as
+self-contained offline demos + a real cloud script each (see
+[specs/AWS_DUCKDB_SPEC.md](specs/AWS_DUCKDB_SPEC.md)):
+
+- **[Aurora PostgreSQL now queries Iceberg/Parquet directly](https://aws.amazon.com/blogs/aws/amazon-aurora-postgresql-now-supports-direct-querying-of-apache-iceberg-and-parquet-data-in-your-data-lake/)**
+  (embedded DuckDB, GA 2026-09-30) — scenario 10.
+- **[Cost-effective ETL with DuckDB and S3 Tables on AWS Glue](https://aws-news.com/article/2026-10-06-cost-effective-etl-with-duckdb-and-amazon-s3-tables-on-aws-glue)**
+  (Glue 6.0, 2026-10-06) — scenario 11.
+- **[Run DuckDB analytics on your DynamoDB data with zero-ETL](https://aws.amazon.com/blogs/database/run-duckdb-analytics-on-your-amazon-dynamodb-data-with-zero-etl/)**
+  (2026-09-11) — scenario 12.

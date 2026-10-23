@@ -84,19 +84,27 @@ class ResultStore:
 
     def run(self, sql: str) -> dict:
         """Execute; if the result exceeds max_rows, materialize as _r_<n> and
-        return a handle instead of a truncated head."""
-        rel = self.con.sql(sql)
-        cols = rel.columns
-        # peek row count cheaply
-        total = self.con.sql(f"SELECT count(*) FROM ({sql})").fetchone()[0]
+        return a handle instead of a truncated head.
+
+        DuckDB 2.0 allows only ONE active result per connection and relations
+        (con.sql) keep no result between calls, so this path is written entirely
+        with con.execute(...).fetchall()/.description, fetching each statement's
+        result to completion before issuing the next."""
+        # Cheap row-count peek first (its own fully-consumed result).
+        total = self.con.execute(f"SELECT count(*) FROM ({sql})").fetchone()[0]
         if total <= self.max_rows:
-            return {"columns": cols, "rows": rel.fetchall(), "row_count": total,
+            cur = self.con.execute(sql)
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description]
+            return {"columns": cols, "rows": rows, "row_count": total,
                     "handle": None}
         self._n += 1
         handle = f"_r_{self._n}"
         self.con.execute(f"CREATE TEMP TABLE {handle} AS {sql}")
         self._owned.add(handle)
-        samples = self.con.sql(f"SELECT * FROM {handle} LIMIT 3").fetchall()
+        cur = self.con.execute(f"SELECT * FROM {handle} LIMIT 3")
+        samples = cur.fetchall()
+        cols = [d[0] for d in cur.description]
         return {"columns": cols, "row_count": total, "handle": handle,
                 "samples": samples, "retrieval": f"SELECT * FROM {handle}"}
 
@@ -108,7 +116,7 @@ class ResultStore:
         if foreign:
             raise HandleError(
                 f"result handle(s) {sorted(foreign)} not owned by this session")
-        return self.con.sql(sql).fetchall()
+        return self.con.execute(sql).fetchall()
 
 
 # --- history compression -----------------------------------------------------

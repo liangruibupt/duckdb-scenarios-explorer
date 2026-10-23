@@ -47,9 +47,9 @@ def test_window_pct_sums_to_100_per_customer(con, frames):
 
 def test_arrow_result_reads_back(con, frames):
     orders, regions = frames
-    reader = con.execute(
-        "SELECT count(*) n, round(avg(amount),2) a FROM orders").arrow()
-    tbl = reader.read_all() if hasattr(reader, "read_all") else reader
+    # relation.to_arrow_table(): con.execute(...).arrow() was removed in DuckDB 2.0
+    tbl = con.sql(
+        "SELECT count(*) n, round(avg(amount),2) a FROM orders").to_arrow_table()
     d = tbl.to_pydict()
     assert d["n"][0] == len(orders)
     assert d["a"][0] > 0

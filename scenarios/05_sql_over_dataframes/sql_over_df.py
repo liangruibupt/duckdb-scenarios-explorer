@@ -95,9 +95,12 @@ def main() -> None:
     else:
         print(f"\n# 4. (skipped -- {TAXI} not present; run ../01_nyc_taxi/get_data.sh)")
 
-    # 5) Result also comes back as Arrow with zero conversion cost.
-    reader = con.execute("SELECT count(*) AS n, round(avg(amount),2) AS avg_amt FROM orders").arrow()
-    tbl = reader.read_all() if hasattr(reader, "read_all") else reader
+    # 5) Result also comes back as Arrow with zero conversion cost. Use a
+    #    relation (con.sql) -> to_arrow_table(): con.execute(...).arrow() was
+    #    removed in DuckDB 2.0 (execute returns the connection, not a result).
+    tbl = con.sql(
+        "SELECT count(*) AS n, round(avg(amount),2) AS avg_amt FROM orders"
+    ).to_arrow_table()
     print(f"\n# 5. Same engine, result as Arrow: {tbl.to_pydict()}")
 
     print("\nDone -- SQL and Pandas over the same in-memory buffers, no copies.")

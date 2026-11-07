@@ -203,6 +203,95 @@ in front and let DuckDB analyze its data afterwards.
 **经验法则**：如果问题是“扫描并聚合大量行、以读为主、同一时间只有一个进程”，DuckDB 是很好的
 默认选择。如果是“很多客户端同时各改几行”，就在前面放一个事务型数据库，再让 DuckDB 分析它的数据。
 
+### 4. How much data can one query handle? · 一次能处理多少数据？
+
+There is **no official size cap** such as "10 GB" or "100 GB". Whether DuckDB
+stays fast depends on four things: how many bytes a query actually reads, how
+large its intermediate state gets, how much RAM and local disk the machine
+has, and I/O bandwidth.
+
+**What the docs say**
+([Working with Huge Databases](https://duckdb.org/docs/2.0/guides/performance/working_with_huge_databases.html),
+[Limits](https://duckdb.org/docs/2.0/operations_manual/limits.html)):
+- A native database file has no practical size limit. In the 2024 user survey,
+  1% of users had files of 2 TB or more (roughly 10 TB of CSV).
+- Huge files cost time to open and to checkpoint. For example, adding a few rows
+  to a TPC-H SF1000 database and checkpointing takes about 5 seconds. For large
+  data the docs recommend DuckLake, which spreads data over many Parquet files.
+- When memory runs out, JOIN, GROUP BY and ORDER BY spill to disk. A query with
+  several blocking operators, or with an aggregate that cannot spill such as
+  `string_agg`, can still run out of memory.
+
+**Measure bytes read, not total data size.** Parquet is compressed and columnar,
+so 1 TB of CSV is often a fraction of that as Parquet. A query that uses 3 of 50
+columns reads only those 3. Partition and statistics pruning skip most files when
+the query filters on a date or partition column. A query on a "1 TB lake" may
+scan only tens of GB.
+
+**Then look at the query shape, relative to RAM:**
+
+| Situation | Behavior |
+|---|---|
+| Bytes scanned fit in RAM | Runs fully in memory, fastest |
+| Scan is several to tens of times RAM, mostly scan / filter / low-cardinality aggregate | Streams with little memory; time grows roughly linearly with data and is bound by I/O bandwidth |
+| Big-table JOIN, high-cardinality GROUP BY, full sort or large window, with intermediate state above RAM | Spills to disk: slower but usually finishes. Needs fast local NVMe and enough temp space (default cap: 90% of free disk) |
+| Intermediate state does not fit even on local disk, or the job needs a TB-scale shuffle | Not a single-node job: use Spark/EMR, Athena or Redshift |
+
+**I/O is often the real bottleneck.** Reading from S3 is limited by one
+instance's network bandwidth, typically a few GB/s, so scanning 1 TB takes
+minutes, and the network is the slow part, not DuckDB. Lambda gives at most
+10 GB of memory, limited `/tmp` and 15 minutes per invocation, so it suits
+queries over a few GB to tens of GB that are mostly scan and aggregate.
+
+**Rough guide** (common experience, not an official number): on a machine with
+64–128 GB RAM and NVMe, scanning and aggregating a few hundred GB of Parquet is
+usually smooth. TB-scale data is workable when partition and column pruning
+reduce each query to a few hundred GB. Switch to a distributed engine when large
+JOIN or sort intermediates stay at TB scale. The thresholds move up with bigger
+machines (instances with hundreds of GB of RAM).
+
+**Measure it.** On the target instance type, set `memory_limit` and
+`temp_directory`, run your real top-N queries, and use `EXPLAIN ANALYZE` to see
+time and spill.
+
+DuckDB 没有“10GB 以内”或“100GB 以内”这类**官方上限**。能不能高效处理，取决于四件事：查询实际读多少
+字节、中间状态有多大、机器有多少内存和本地磁盘，以及 I/O 带宽。
+
+**官方的说法**
+（[Working with Huge Databases](https://duckdb.org/docs/2.0/guides/performance/working_with_huge_databases.html)、
+[Limits](https://duckdb.org/docs/2.0/operations_manual/limits.html)）：
+- 原生数据库文件没有实际的大小限制。2024 年的用户调查里，1% 的用户在用 2 TB 以上的文件，大约相当于
+  10 TB CSV。
+- 超大文件的代价是打开和 checkpoint 变慢。例如在 TPC-H SF1000 库上加几行再 checkpoint，大约要 5 秒。
+  文档建议大数据量改用 DuckLake，也就是把数据分散到许多 Parquet 文件里。
+- 内存不够时，JOIN、GROUP BY、ORDER BY 会溢写到磁盘。但一个查询里有多个阻塞算子，或者用到
+  `string_agg` 这类不能溢写的聚合时，仍然可能内存不足。
+
+**看“查询实际读多少”，不看“数据总量”。** Parquet 是列式压缩的，1 TB 的 CSV 转成 Parquet 往往只有它的
+几分之一。一张 50 列的表，查询只用 3 列，就只读这 3 列。带上日期或分区过滤条件时，分区和统计信息裁剪
+可以跳过大部分文件。“1 TB 的数据湖”上的一个查询，实际可能只扫几十 GB。
+
+**再看查询形态，以内存为参照：**
+
+| 情况 | 表现 |
+|---|---|
+| 实际扫描量不超过内存 | 全在内存里跑，最快 |
+| 扫描量是内存的数倍到数十倍，查询以扫描、过滤、低基数聚合为主 | 流式处理，内存占用小，耗时大致随数据量线性增长，主要受 I/O 带宽限制 |
+| 大表 JOIN 大表、高基数 GROUP BY、全量排序、大窗口函数，中间状态超过内存 | 会溢写到磁盘，变慢但通常能跑完。需要快速的本地 NVMe 和足够的临时空间（默认上限是可用磁盘的 90%） |
+| 中间状态连本地磁盘都放不下，或需要 TB 级 shuffle | 不适合单机，换 Spark/EMR、Athena 或 Redshift |
+
+**I/O 也常常是瓶颈。** 从 S3 读数据时，速度受单台实例网卡带宽限制，一般在每秒几 GB 量级。扫 1 TB 要以
+分钟计，这时慢在网络，不在 DuckDB 本身。Lambda 最多 10 GB 内存，`/tmp` 空间有限，单次最长 15 分钟，
+更适合每次处理几 GB 到几十 GB、以扫描聚合为主的查询。
+
+**经验参考**（常见经验，不是官方数字）：在一台 64–128 GB 内存、带 NVMe 的机器上，几百 GB 的 Parquet
+做扫描和聚合通常很顺畅。TB 级数据如果查询能靠分区和列裁剪减到几百 GB 以内，也可行。只有当大 JOIN 或
+排序的中间结果持续在 TB 级时，才明显该换分布式引擎。机器更大，这些边界也跟着上移，例如内存几百 GB 的
+大实例。
+
+**最可靠的办法是实测**：在目标机型上设好 `memory_limit` 和 `temp_directory`，拿真实的 Top-N 查询跑
+一遍，用 `EXPLAIN ANALYZE` 看耗时和溢写量。
+
 ## Repo layout · 仓库结构
 
 ```

@@ -4,12 +4,16 @@
 # then shut down. Launch with --instance-initiated-shutdown-behavior terminate
 # so the shutdown also terminates (and stops billing for) the instance.
 #
-# launch.sh fills in the instance type, the git branch and the run list (one
-# bench.py argument list per line) before passing this file as user-data.
+# launch.sh fills in the instance type, the git branch, the hard time cap and
+# the run list (one script + arguments per line, run from scenarios/13_tpch_scale)
+# before passing this file as user-data.
 set -uo pipefail
 exec > >(tee -a /var/log/tpch-bench.log) 2>&1
 
-shutdown -h +300 "tpch bench hard cap"           # never run longer than 5 h
+shutdown -h +__HARDCAP_MIN__ "tpch bench hard cap"   # never run longer than this
+
+# cloud-init runs without HOME; DuckDB needs it to install extensions.
+export HOME=/root
 
 REPO=https://github.com/liangruibupt/duckdb-scenarios-explorer.git
 BRANCH=__BRANCH__
@@ -18,15 +22,19 @@ export BENCH_INSTANCE_TYPE=$TYPE
 echo "TPCH-BENCH start $(date -u +%FT%TZ) on $TYPE"
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get install -y -qq git python3-venv xfsprogs >/dev/null
+apt-get update -qq && apt-get install -y -qq git python3-venv xfsprogs mdadm curl >/dev/null
 
-# Local NVMe instance store for data + spill. Select it by model name so the
-# EBS root volume can never be picked.
-NVME=$(lsblk -dno NAME,MODEL | awk '/Instance Storage/{print $1; exit}')
+# Local NVMe instance store for data + spill. Select disks by model name so the
+# EBS root volume can never be picked; stripe them (RAID 0) when there are
+# several.
+mapfile -t DISKS < <(lsblk -dno NAME,MODEL | awk '/Instance Storage/{print "/dev/"$1}')
 WORK=/mnt/bench
 mkdir -p $WORK
-if [ -n "$NVME" ] && ! lsblk -no MOUNTPOINT "/dev/$NVME" | grep -q .; then
-  mkfs.xfs -f "/dev/$NVME" && mount "/dev/$NVME" $WORK
+if [ ${#DISKS[@]} -gt 1 ]; then
+  mdadm --create /dev/md0 --level=0 --raid-devices=${#DISKS[@]} --run "${DISKS[@]}" \
+    && mkfs.xfs -f /dev/md0 && mount /dev/md0 $WORK
+elif [ ${#DISKS[@]} -eq 1 ]; then
+  mkfs.xfs -f "${DISKS[0]}" && mount "${DISKS[0]}" $WORK
 fi
 df -h $WORK
 
@@ -39,7 +47,8 @@ while IFS= read -r args; do
   [ -z "$args" ] && continue
   echo "TPCH-BENCH run: $args"
   # shellcheck disable=SC2086
-  $WORK/venv/bin/python bench.py $args --data-dir $WORK/data --results-dir $WORK/results < /dev/null
+  $WORK/venv/bin/python $args --data-dir $WORK/data --results-dir $WORK/results < /dev/null \
+    || echo "TPCH-BENCH run failed: $args"
 done <<'RUNS'
 __RUNS__
 RUNS

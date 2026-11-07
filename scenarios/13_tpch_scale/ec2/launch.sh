@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Launch one self-terminating benchmark instance.
-#   ./launch.sh <instance-type> <branch> <runs-file> [region] [subnet-id]
-# <runs-file> has one bench.py argument list per line, e.g.
-#   --sf 10
-#   --sf 10 --source parquet
+#   ./launch.sh <instance-type> <branch> <runs-file> [region] [subnet-id] [hard-cap-minutes]
+# <runs-file> has one script + arguments per line, e.g.
+#   bench.py --sf 10
+#   clickbench.py
 # Uses the latest Ubuntu 24.04 arm64 AMI, no key pair, no inbound access, the
 # subnet's default security group, and shutdown behavior = terminate.
 set -euo pipefail
 TYPE=$1; BRANCH=$2; RUNS_FILE=$3
-REGION=${4:-us-east-1}; SUBNET=${5:-}
+REGION=${4:-us-east-1}; SUBNET=${5:-}; CAP=${6:-300}
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 AMI=$(aws ssm get-parameter --region "$REGION" \
@@ -16,10 +16,14 @@ AMI=$(aws ssm get-parameter --region "$REGION" \
   --query Parameter.Value --output text)
 
 UD=$(mktemp)
-python3 - "$HERE/userdata.sh" "$BRANCH" "$RUNS_FILE" "$TYPE" > "$UD" <<'EOF'
+python3 - "$HERE/userdata.sh" "$BRANCH" "$RUNS_FILE" "$TYPE" "$CAP" > "$UD" <<'EOF'
 import sys
-tpl, branch, runs, typ = sys.argv[1], sys.argv[2], open(sys.argv[3]).read().strip(), sys.argv[4]
-print(open(tpl).read().replace("__BRANCH__", branch).replace("__RUNS__", runs).replace("__TYPE__", typ), end="")
+tpl, branch, runs, typ, cap = (sys.argv[1], sys.argv[2], open(sys.argv[3]).read().strip(),
+                               sys.argv[4], sys.argv[5])
+out = open(tpl).read()
+for k, v in {"__BRANCH__": branch, "__RUNS__": runs, "__TYPE__": typ, "__HARDCAP_MIN__": cap}.items():
+    out = out.replace(k, v)
+print(out, end="")
 EOF
 
 aws ec2 run-instances --region "$REGION" --image-id "$AMI" --instance-type "$TYPE" \

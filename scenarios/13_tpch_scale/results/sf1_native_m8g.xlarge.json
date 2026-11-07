@@ -1,0 +1,267 @@
+{
+  "sf": 1.0,
+  "source": "native",
+  "tag": "m8g.xlarge",
+  "machine": {
+    "cpus": 4,
+    "ram_gb": 15.3,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8g.xlarge"
+  },
+  "config": {
+    "memory_limit": "10GB",
+    "threads": 4,
+    "max_temp": null,
+    "children": 1
+  },
+  "generate_seconds": 0.0,
+  "db_file_gb": 0.26,
+  "queries": [
+    {
+      "query": 1,
+      "seconds": 0.041,
+      "rows": 4,
+      "peak_rss_gb": 0.13,
+      "peak_buffer_gb": 0.05,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 2,
+      "seconds": 0.01,
+      "rows": 100,
+      "peak_rss_gb": 0.15,
+      "peak_buffer_gb": 0.06,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 3,
+      "seconds": 0.025,
+      "rows": 10,
+      "peak_rss_gb": 0.18,
+      "peak_buffer_gb": 0.08,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 4,
+      "seconds": 0.02,
+      "rows": 5,
+      "peak_rss_gb": 0.2,
+      "peak_buffer_gb": 0.1,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 5,
+      "seconds": 0.026,
+      "rows": 5,
+      "peak_rss_gb": 0.22,
+      "peak_buffer_gb": 0.11,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 6,
+      "seconds": 0.011,
+      "rows": 1,
+      "peak_rss_gb": 0.22,
+      "peak_buffer_gb": 0.11,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 7,
+      "seconds": 0.024,
+      "rows": 4,
+      "peak_rss_gb": 0.24,
+      "peak_buffer_gb": 0.11,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 8,
+      "seconds": 0.024,
+      "rows": 2,
+      "peak_rss_gb": 0.25,
+      "peak_buffer_gb": 0.12,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 9,
+      "seconds": 0.061,
+      "rows": 175,
+      "peak_rss_gb": 0.26,
+      "peak_buffer_gb": 0.13,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 10,
+      "seconds": 0.037,
+      "rows": 20,
+      "peak_rss_gb": 0.27,
+      "peak_buffer_gb": 0.14,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 11,
+      "seconds": 0.007,
+      "rows": 1048,
+      "peak_rss_gb": 0.27,
+      "peak_buffer_gb": 0.14,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 12,
+      "seconds": 0.019,
+      "rows": 2,
+      "peak_rss_gb": 0.27,
+      "peak_buffer_gb": 0.14,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 13,
+      "seconds": 0.079,
+      "rows": 42,
+      "peak_rss_gb": 0.31,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 14,
+      "seconds": 0.016,
+      "rows": 1,
+      "peak_rss_gb": 0.31,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 15,
+      "seconds": 0.013,
+      "rows": 1,
+      "peak_rss_gb": 0.31,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 16,
+      "seconds": 0.026,
+      "rows": 18314,
+      "peak_rss_gb": 0.32,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 17,
+      "seconds": 0.018,
+      "rows": 1,
+      "peak_rss_gb": 0.32,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 18,
+      "seconds": 0.051,
+      "rows": 57,
+      "peak_rss_gb": 0.34,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 19,
+      "seconds": 0.02,
+      "rows": 1,
+      "peak_rss_gb": 0.34,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 20,
+      "seconds": 0.023,
+      "rows": 186,
+      "peak_rss_gb": 0.34,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 21,
+      "seconds": 0.044,
+      "rows": 100,
+      "peak_rss_gb": 0.34,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    },
+    {
+      "query": 22,
+      "seconds": 0.023,
+      "rows": 7,
+      "peak_rss_gb": 0.34,
+      "peak_buffer_gb": 0.16,
+      "peak_spill_gb": 0.0,
+      "ok": true,
+      "answer_rowcount_match": true,
+      "error": null
+    }
+  ],
+  "total_seconds": 0.6,
+  "queries_ok": 22
+}

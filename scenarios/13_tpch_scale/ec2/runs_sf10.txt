@@ -1,0 +1,2 @@
+--sf 10 --tag m8gd.2xlarge
+--sf 10 --source parquet --tag m8gd.2xlarge

@@ -45,6 +45,87 @@ python report.py       # -> report.html (self-contained, inline-SVG charts)
 - **Real SQL**: window functions, exact & approximate quantiles, `httpfs` for
   S3/HTTP, joins across heterogeneous file formats.
 
+## When to use DuckDB (and when not to)
+
+DuckDB is an analytical engine embedded in a process. Most of its limits come
+from that design: it scales up on one machine, it is tuned for scanning many
+rows rather than touching one, and in its default mode it is a library, not a
+shared service. Facts below follow the DuckDB 2.0 docs
+([Concurrency](https://duckdb.org/docs/2.0/connect/concurrency.html),
+[Limits](https://duckdb.org/docs/2.0/operations_manual/limits.html),
+[Tuning Workloads](https://duckdb.org/docs/2.0/guides/performance/how_to_tune_workloads.html)).
+
+### 1. Limitations to know
+
+| Area | Limitation | What to do about it |
+|---|---|---|
+| **Writers** | A native `.duckdb` file has **one read-write process**. Other processes can only open it with `access_mode = 'READ_ONLY'`, and not while a writer holds it. Inside the writer process, threads can write concurrently (MVCC + optimistic concurrency): appends never conflict, but two transactions updating/deleting the **same row** fail with `Transaction conflict`, and the app has to retry. | For multi-process writes, use the Quack remote protocol (client-server mode) or **DuckLake** with a PostgreSQL catalog. Or write open files (Parquet / Iceberg) and let each reader open its own DuckDB. See scenarios [03](scenarios/03_csv_to_parquet_etl/), [06](scenarios/06_log_analytics/), [07](scenarios/07_multiagent_agentcore/). |
+| **Scale** | **Single node.** There is no distributed execution, so throughput is capped by one machine's cores, RAM, disk and network. | Partition the work (per tenant, per day, per agent) and run many independent DuckDB instances (scenario [07](scenarios/07_multiagent_agentcore/)). Use Spark/EMR/Athena/Redshift when one job truly needs a cluster. |
+| **Memory** | `memory_limit` defaults to **80% of RAM** and covers only the buffer manager. Joins, GROUP BY and ORDER BY spill to disk (temp dir capped at 90% of free disk). Several blocking operators in one query can still hit out-of-memory, and some aggregates (`string_agg`, sort-based holistic aggregates) cannot spill. | Set `memory_limit`, `temp_directory` and `threads` explicitly, especially in containers and Lambda (2–10 GB RAM, small `/tmp`). Pre-aggregate or split very wide queries. |
+| **Point access / OLTP** | Storage is columnar with ~122k-row row groups. Single-row `INSERT`/`UPDATE`/lookup at high QPS is slow compared with a row store. PRIMARY KEY/UNIQUE use ART indexes, which add write overhead. | Batch writes (Appender, `INSERT ... SELECT`, `COPY`). Keep transactional traffic in Aurora/RDS/DynamoDB and analyze a copy (scenarios [10](scenarios/10_aurora_pg_datalake/), [12](scenarios/12_dynamodb_zero_etl/)). |
+| **Security model** | In-process mode has **no users, roles or GRANT**. Whoever can call the library can read every table and every file the process can reach. | Enforce access outside the engine: IAM / Lake Formation on S3, plus query rewriting for row/column rules (scenario [08](scenarios/08_governance/)). Enable `enable_external_access = false` / lock configuration when SQL comes from users or LLMs. |
+| **Remote storage** | Over S3/HTTP each file costs round trips. Thousands of small files or unpartitioned data make queries slow. A native `.duckdb` file on S3 can only be attached read-only. Parquet files are immutable, so "update" means rewrite. | Compact to ~100 MB–1 GB Parquet, use Hive partitioning, and use Iceberg/DuckLake when you need updates, deletes and snapshots (scenarios [02](scenarios/02_httpfs_s3/), [09](scenarios/09_iceberg/)). |
+| **Operations** | There is no built-in replication, HA or point-in-time recovery for a native file. File locking on NFS/shared drives is unreliable. Native extensions must match the platform and DuckDB version, and unsigned extensions are blocked by default. | Treat the `.duckdb` file as a rebuildable cache, or keep the source of truth in S3 (Parquet/Iceberg/DuckLake). Pin the DuckDB version and pre-install extensions in the image. |
+| **Hard limits** | String/BLOB max 4 GB per value, array size 100,000, expression depth 1,000. There is no practical database file size limit (15 TB+ files are in use), but opening and checkpointing huge files gets slower. | These are rarely the bottleneck. Check them with `current_setting(...)` when in doubt. |
+
+### 2. Good fits for DuckDB
+
+- **Ad-hoc and exploratory analytics on files**: SQL directly over Parquet,
+  CSV and JSON, locally or on S3, without loading a warehouse first
+  (scenarios [01](scenarios/01_nyc_taxi/), [02](scenarios/02_httpfs_s3/)).
+- **Single-node ETL/ELT**: cleaning, joining and reshaping up to roughly
+  hundreds of GB per job and writing partitioned Parquet or Iceberg. This is
+  often faster and cheaper than starting a Spark cluster
+  (scenarios [03](scenarios/03_csv_to_parquet_etl/), [11](scenarios/11_glue_duckdb_etl/)).
+- **Embedded analytics inside an application, Lambda or agent**: each process
+  carries its own engine, so there is nothing to operate and no idle cost
+  (scenarios [04](scenarios/04_chat_bi/), [07](scenarios/07_multiagent_agentcore/), [12](scenarios/12_dynamodb_zero_etl/)).
+- **Data science workflows**: zero-copy SQL over Pandas, Polars and Arrow
+  in notebooks, and feature preparation for ML
+  (scenario [05](scenarios/05_sql_over_dataframes/)).
+- **Log and event analysis**: percentiles, rollups and time windows over
+  NDJSON/Parquet logs (scenario [06](scenarios/06_log_analytics/)).
+- **Analytics next to an OLTP or lake system**: Aurora PostgreSQL's embedded
+  DuckDB, DynamoDB zero-ETL to Iceberg, and reading Iceberg/DuckLake tables
+  with time travel (scenarios [09](scenarios/09_iceberg/), [10](scenarios/10_aurora_pg_datalake/), [12](scenarios/12_dynamodb_zero_etl/)).
+- **Testing and CI for data pipelines**: a full SQL engine in `pip install`,
+  so data-quality checks and SQL unit tests run anywhere.
+- **Edge and browser**: DuckDB-Wasm for client-side dashboards over a
+  downloaded Parquet file.
+
+### 3. Poor fits for DuckDB
+
+- **High-concurrency OLTP**: order systems, account balances, many small
+  transactions per second from many clients. Use Aurora/RDS, DynamoDB or
+  another row store.
+- **Many independent writers on one shared database file**: in-process mode
+  allows one writer process. Use Quack or DuckLake only if you accept running
+  a server or a catalog database. Otherwise this is a job for a server
+  database.
+- **A shared, multi-user enterprise warehouse with built-in RBAC, workload
+  isolation and many concurrent BI users**: Redshift, Snowflake or Athena fit
+  better. DuckDB can still serve as a per-user or per-agent engine on top of
+  the same lake.
+- **Jobs that do not fit on one machine**: multi-TB shuffles or joins with
+  large intermediate state that would spill past local disk. Use Spark/EMR or
+  a distributed warehouse.
+- **Low-latency key-value serving**: sub-millisecond lookups by key at high
+  QPS. Use DynamoDB, ElastiCache or a row-store index.
+- **Continuous streaming with per-event updates**: many single-row updates
+  per second against the same tables. Buffer into micro-batches, or use a
+  streaming system (Kinesis/Flink/MSK) and let DuckDB query the landed files.
+- **Primary system of record needing HA and replication**: a single native
+  file has no replicas or failover. Keep the source of truth in a managed
+  database or in S3 table formats.
+- **Large-scale search and vector retrieval as the main workload**: the `fts`
+  and `vss` extensions work for prototypes and moderate data, but dedicated
+  engines (OpenSearch, S3 Vectors, pgvector) scale and update better.
+
+**Rule of thumb:** if the question is "scan and aggregate many rows, mostly
+read, from one process at a time", DuckDB is a strong default. If it is "many
+clients changing a few rows each, all at once", put a transactional database
+in front and let DuckDB analyze its data afterwards.
+
 ## Repo layout
 
 ```

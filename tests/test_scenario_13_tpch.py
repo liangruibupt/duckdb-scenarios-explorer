@@ -9,7 +9,7 @@ import pathlib
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-S13 = REPO / "scenarios" / "13_tpch_scale"
+S13 = REPO / "scenarios" / "13_performance_benchmarks"
 
 
 def _mod():

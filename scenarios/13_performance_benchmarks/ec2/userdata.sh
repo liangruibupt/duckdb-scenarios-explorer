@@ -5,7 +5,7 @@
 # so the shutdown also terminates (and stops billing for) the instance.
 #
 # launch.sh fills in the instance type, the git branch, the hard time cap and
-# the run list (one script + arguments per line, run from scenarios/13_tpch_scale)
+# the run list (one script + arguments per line, run from scenarios/13_performance_benchmarks)
 # before passing this file as user-data.
 set -uo pipefail
 exec > >(tee -a /var/log/tpch-bench.log) 2>&1
@@ -41,7 +41,7 @@ df -h $WORK
 git clone --depth 1 --branch "$BRANCH" "$REPO" $WORK/repo
 python3 -m venv $WORK/venv
 $WORK/venv/bin/pip install -q duckdb==2.0.0 psutil
-cd $WORK/repo/scenarios/13_tpch_scale
+cd $WORK/repo/scenarios/13_performance_benchmarks
 
 while IFS= read -r args; do
   [ -z "$args" ] && continue

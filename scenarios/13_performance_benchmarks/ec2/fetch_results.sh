@@ -7,7 +7,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$(aws ec2 get-console-output --region "$REGION" --instance-id "$ID" --latest \
   --query Output --output text)
 B64=$(printf '%s\n' "$OUT" | sed -n '/TPCH-RESULTS-BEGIN/,/TPCH-RESULTS-END/p' \
-  | grep -v 'TPCH-RESULTS' | tr -d '\r\n ')
+  | grep -v 'TPCH-RESULTS' | sed -E 's/^.*cloud-init\[[0-9]+\]: //' | tr -d '\r\n ')
+# (each console line carries a "[ 144.38] cloud-init[1199]: " prefix)
 if [ -z "$B64" ]; then
   echo "no results yet; last lines:"; printf '%s\n' "$OUT" | grep 'TPCH-BENCH\|Q[0-9][0-9] ' | tail -5
   exit 1

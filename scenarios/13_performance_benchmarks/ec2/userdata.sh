@@ -11,6 +11,10 @@ set -uo pipefail
 exec > >(tee -a /var/log/tpch-bench.log) 2>&1
 
 shutdown -h +__HARDCAP_MIN__ "tpch bench hard cap"   # never run longer than this
+# A reboot cancels the timer above and user-data does not run again, so the
+# instance would idle forever. Make any reboot shut it down (= terminate).
+echo '@reboot root /sbin/shutdown -h +10 "tpch bench: rebooted, shutting down"' \
+  > /etc/cron.d/tpch-bench-reboot-guard
 
 # cloud-init runs without HOME; DuckDB needs it to install extensions.
 export HOME=/root

@@ -84,10 +84,11 @@ Results still running are marked *pending*.
 | TPC-H SF1 | m8g.xlarge (4 vCPU, 15 GB) | 0.6 s | 1.3 s | 0.34 / 0.32 GB | 0 |
 | TPC-H SF10 | m8g.xlarge (4 vCPU, 15 GB) | 6.9 s | 15.2 s | 2.6 / 0.9 GB | 0 |
 | TPC-H SF10 | m8gd.2xlarge (8 vCPU, 31 GB) | 2.9 s | 7.0 s | 2.7 / 1.0 GB | 0 |
-| TPC-H SF100 | r8gd.4xlarge (16 vCPU, 128 GB) | *pending* | *pending* | | |
+| TPC-H SF100 | r8gd.4xlarge (16 vCPU, 128 GB) | 14.7 s | 36.3 s | 24.8 / 7.6 GB | 0 |
+| TPC-H SF100, `memory_limit=16GB` | r8gd.4xlarge (16 vCPU, 128 GB) | 15.4 s | — | 15.6 GB | 0 |
 | TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | *pending* | *pending* | | |
-| ClickBench | m8gd.4xlarge (16 vCPU, 64 GB) | *pending* | *pending* | | |
-| Overture (S3) | m8gd.4xlarge, us-west-2 | — | *pending* | | |
+| ClickBench (43 queries, hot) | m8gd.4xlarge (16 vCPU, 64 GB) | 10.6 s | 17.2 s | 24.8 / 8.0 GB | 0 |
+| Overture (S3) | m8gd.4xlarge, us-west-2 | — | *rerun needed* | | |
 
 Observations so far: at SF10 every query fits comfortably in memory on both
 machines, the native file is about 2× faster than Parquet, and doubling the
@@ -98,3 +99,34 @@ generation takes about 2.4 hours regardless of instance size.
 目前的观察：SF10 时两台机器上所有查询都轻松放进内存，原生文件比 Parquet 快约 2 倍，核数翻倍耗时大约
 减半。DuckDB 的 `dbgen` 在 16 核和 64 核机器上生成速度几乎一样（每个 SF5 分块约 43 秒），所以无论实例
 多大，生成 SF1000 都要约 2.4 小时。
+
+**SF100 (~100 GB raw, 27 GB `.duckdb`, 22.5 GB Parquet).** All 22 queries take
+14.7 s in total on the native file; the slowest single query (Q13) takes 1.7 s.
+Parquet is 2.5× slower (36.3 s) but its peak RSS is a third (7.6 GB vs 24.8 GB),
+because the native run keeps the database's blocks cached. Capping
+`memory_limit` at 16 GB, below the 27 GB database, costs only 5% (15.4 s) and
+**causes no spill**: DuckDB evicts cached blocks and re-reads them from the NVMe
+disk; no query's working state came near 16 GB. Generating SF100 took 14.5 min
+and exporting it to Parquet 39 s.
+
+**ClickBench (100M rows, 13.8 GiB Parquet).** All 43 queries pass. Hot totals:
+10.6 s on a DuckDB table (after a 34 s load) and 17.2 s directly on the Parquet
+file, with no spill. Q28 (a `REGEXP_REPLACE` over URLs with a high-cardinality
+GROUP BY) is the slowest at 3.5 s / 5.0 s. Downloading the file took 148 s.
+
+**Overture.** The first run did not produce results: the instance rebooted about
+two minutes into the benchmark, and user-data does not run again after a reboot.
+It has to be rerun.
+
+**SF100（原始约 100 GB，`.duckdb` 27 GB，Parquet 22.5 GB）。** 原生文件上 22 个查询共 14.7 秒，最慢的
+单个查询（Q13）1.7 秒。Parquet 慢 2.5 倍（36.3 秒），但进程内存峰值只有三分之一（7.6 GB 对 24.8 GB），
+因为原生运行会把数据库块缓存在内存里。把 `memory_limit` 限制到 16 GB（低于 27 GB 的数据库）只慢了 5%
+（15.4 秒），而且**没有溢写**：DuckDB 会淘汰缓存的块，再从 NVMe 磁盘重新读取；没有哪个查询的工作状态接近
+16 GB。生成 SF100 用了 14.5 分钟，导出为 Parquet 用了 39 秒。
+
+**ClickBench（1 亿行，Parquet 13.8 GiB）。** 43 个查询全部通过。热查询总耗时：DuckDB 表上 10.6 秒（导入用了
+34 秒），直接查 Parquet 文件 17.2 秒，都没有溢写。最慢的是 Q28（对 URL 做 `REGEXP_REPLACE` 再按高基数分组），
+分别为 3.5 秒和 5.0 秒。下载文件用了 148 秒。
+
+**Overture。** 第一次运行没有产出结果：实例在测试开始约两分钟后重启了，而 user-data 在重启后不会再次运行，
+需要重跑。

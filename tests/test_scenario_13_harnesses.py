@@ -63,3 +63,10 @@ def test_overture_queries_render(tmp_path):
     for _, _, sql in m.QUERIES:
         rendered = sql.format(out=tmp_path.as_posix(), **g)
         assert "{" not in rendered and "read_parquet('s3://" in rendered
+
+
+def test_overture_diag_lists_every_query():
+    m = _mod("overture_diag")
+    line = m.mem_line(None)
+    assert "available" in line and "GB" in line
+    assert {q[0] for q in _mod("overture").QUERIES} >= {"places_count", "buildings_height_by_subtype"}

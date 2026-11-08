@@ -1,0 +1,113 @@
+{
+  "benchmark": "overture",
+  "release": "2026-10-21.0",
+  "tag": "m8gd.8xlarge_segments_tokyo_bbox",
+  "machine": {
+    "cpus": 32,
+    "ram_gb": 123.5,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8gd.8xlarge"
+  },
+  "config": {
+    "memory_limit": "64GB",
+    "threads": 32
+  },
+  "queries": [
+    {
+      "name": "segments_tokyo_bbox",
+      "what": "bbox filter + GROUP BY on road class around Tokyo",
+      "ok": true,
+      "error": null,
+      "cold_seconds": 0.67,
+      "warm_seconds": 0.2,
+      "network_gb_cold": 0.252,
+      "network_gb_warm": 0.0,
+      "result": [
+        [
+          "residential",
+          "128354"
+        ],
+        [
+          "service",
+          "111940"
+        ],
+        [
+          "footway",
+          "90588"
+        ],
+        [
+          "unclassified",
+          "75812"
+        ],
+        [
+          "tertiary",
+          "43227"
+        ],
+        [
+          "steps",
+          "16160"
+        ],
+        [
+          "primary",
+          "13853"
+        ],
+        [
+          "path",
+          "10712"
+        ],
+        [
+          "secondary",
+          "10712"
+        ],
+        [
+          "trunk",
+          "5892"
+        ],
+        [
+          "standard_gauge",
+          "3310"
+        ],
+        [
+          "pedestrian",
+          "2588"
+        ],
+        [
+          "motorway",
+          "1371"
+        ],
+        [
+          "cycleway",
+          "1242"
+        ],
+        [
+          "subway",
+          "913"
+        ],
+        [
+          "track",
+          "897"
+        ],
+        [
+          "unknown",
+          "189"
+        ],
+        [
+          "light_rail",
+          "99"
+        ],
+        [
+          "tram",
+          "39"
+        ],
+        [
+          "monorail",
+          "34"
+        ]
+      ],
+      "peak_rss_gb": 2.59
+    }
+  ],
+  "queries_ok": 1
+}

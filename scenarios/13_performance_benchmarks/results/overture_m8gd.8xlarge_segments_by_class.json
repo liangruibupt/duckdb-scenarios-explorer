@@ -1,0 +1,133 @@
+{
+  "benchmark": "overture",
+  "release": "2026-10-21.0",
+  "tag": "m8gd.8xlarge_segments_by_class",
+  "machine": {
+    "cpus": 32,
+    "ram_gb": 123.5,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8gd.8xlarge"
+  },
+  "config": {
+    "memory_limit": "64GB",
+    "threads": 32
+  },
+  "queries": [
+    {
+      "name": "segments_by_class",
+      "what": "two-column full scan over transportation segments (68 GiB theme)",
+      "ok": true,
+      "error": null,
+      "cold_seconds": 15.97,
+      "warm_seconds": 0.38,
+      "network_gb_cold": 0.446,
+      "network_gb_warm": 0.0,
+      "result": [
+        [
+          "road",
+          "residential",
+          "128703433"
+        ],
+        [
+          "road",
+          "service",
+          "62462825"
+        ],
+        [
+          "road",
+          "unclassified",
+          "30272006"
+        ],
+        [
+          "road",
+          "track",
+          "26687206"
+        ],
+        [
+          "road",
+          "footway",
+          "24994696"
+        ],
+        [
+          "road",
+          "tertiary",
+          "20906766"
+        ],
+        [
+          "road",
+          "path",
+          "14438947"
+        ],
+        [
+          "road",
+          "secondary",
+          "11455731"
+        ],
+        [
+          "road",
+          "unknown",
+          "10897482"
+        ],
+        [
+          "road",
+          "primary",
+          "7491795"
+        ],
+        [
+          "road",
+          "trunk",
+          "4190571"
+        ],
+        [
+          "road",
+          "living_street",
+          "3487364"
+        ],
+        [
+          "road",
+          "steps",
+          "2088823"
+        ],
+        [
+          "rail",
+          "standard_gauge",
+          "1480724"
+        ],
+        [
+          "road",
+          "cycleway",
+          "1458690"
+        ],
+        [
+          "road",
+          "motorway",
+          "1126761"
+        ],
+        [
+          "road",
+          "pedestrian",
+          "481551"
+        ],
+        [
+          "rail",
+          "unknown",
+          "400060"
+        ],
+        [
+          "road",
+          "bridleway",
+          "104091"
+        ],
+        [
+          "rail",
+          "tram",
+          "58889"
+        ]
+      ],
+      "peak_rss_gb": 3.11
+    }
+  ],
+  "queries_ok": 1
+}

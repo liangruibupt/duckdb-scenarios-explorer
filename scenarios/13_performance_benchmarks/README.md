@@ -89,7 +89,7 @@ Results still running are marked *pending*.
 | TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | 52.2 s | 168.9 s | 224 / 70 GB | 0 |
 | TPC-H SF1000, `memory_limit=128GB` | r8gd.16xlarge (64 vCPU, 512 GB) | 75.8 s | — | 123 GB | 0 |
 | ClickBench (43 queries, hot) | m8gd.4xlarge (16 vCPU, 64 GB) | 10.6 s | 17.2 s | 24.8 / 8.0 GB | 0 |
-| Overture (S3) | m8gd.4xlarge, us-west-2 | — | *rerun needed* | | |
+| Overture on S3 (8 queries, cold) | m8gd.8xlarge (32 vCPU, 128 GB), us-west-2 | — | 103.2 s | 5.6 GB | 0 |
 
 Observations so far: at SF10 every query fits comfortably in memory on both
 machines, the native file is about 2× faster than Parquet, and doubling the
@@ -130,19 +130,44 @@ single-threaded) and exporting it to Parquet 2.7 min.
 （不到 280 GB 数据库的一半），所有查询仍然不溢写，只慢了 45%（75.8 秒）。生成数据用了 2.4 小时（`dbgen` 基本是
 单线程），导出 Parquet 用了 2.7 分钟。
 
-**Overture.** The first run did not produce results: the instance rebooted about
-two minutes into the benchmark, and user-data does not run again after a reboot.
-It has to be rerun.
+**Overture (579 GiB of Parquet on S3, read in place).** All 8 queries pass, and
+no query read more than 2.1 GB over the network:
 
-**SF100（原始约 100 GB，`.duckdb` 27 GB，Parquet 22.5 GB）。** 原生文件上 22 个查询共 14.7 秒，最慢的
-单个查询（Q13）1.7 秒。Parquet 慢 2.5 倍（36.3 秒），但进程内存峰值只有三分之一（7.6 GB 对 24.8 GB），
-因为原生运行会把数据库块缓存在内存里。把 `memory_limit` 限制到 16 GB（低于 27 GB 的数据库）只慢了 5%
-（15.4 秒），而且**没有溢写**：DuckDB 会淘汰缓存的块，再从 NVMe 磁盘重新读取；没有哪个查询的工作状态接近
-16 GB。生成 SF100 用了 14.5 分钟，导出为 Parquet 用了 39 秒。
+| Query | Cold | Warm | Network (cold) |
+|---|---:|---:|---:|
+| Count 88M places (footers only) | 0.32 s | 0.11 s | 0.04 GB |
+| Top place categories (1 column, all places) | 2.96 s | 0.15 s | 0.15 GB |
+| Count 2.53B buildings (footers only, 258 GiB theme) | 1.28 s | 0.70 s | 0.43 GB |
+| Seattle bbox filter over all buildings | 1.23 s | 0.58 s | 0.43 GB |
+| Height by subtype over all 2.53B buildings | 79.3 s | 1.16 s | 2.03 GB |
+| Road segments by class (68 GiB theme) | 16.0 s | 0.38 s | 0.45 GB |
+| Tokyo bbox filter over road segments | 0.67 s | 0.20 s | 0.25 GB |
+| Extract Seattle's 345k buildings to local Parquet | 1.49 s | 0.74 s | 0.50 GB |
 
-**ClickBench（1 亿行，Parquet 13.8 GiB）。** 43 个查询全部通过。热查询总耗时：DuckDB 表上 10.6 秒（导入用了
-34 秒），直接查 Parquet 文件 17.2 秒，都没有溢写。最慢的是 Q28（对 URL 做 `REGEXP_REPLACE` 再按高基数分组），
-分别为 3.5 秒和 5.0 秒。下载文件用了 148 秒。
+Even the full scan of every building reads 2 GB of the 258 GiB theme, because
+DuckDB fetches only the needed columns, and bbox filters skip files and row
+groups using their statistics. Warm runs read nothing over the network: DuckDB
+caches the remote data it has already read. Peak memory stayed under 6 GB. Two
+earlier attempts on smaller instances ended in an unexplained instance reboot
+during the full building scan; this run isolated each query in its own process
+and logged memory every 10 s, and the reboot did not recur (available memory
+never dropped below 120 GB).
 
-**Overture。** 第一次运行没有产出结果：实例在测试开始约两分钟后重启了，而 user-data 在重启后不会再次运行，
-需要重跑。
+**Overture（S3 上 579 GiB 的 Parquet，原地读取）。** 8 个查询全部通过，没有一个查询从网络读取超过 2.1 GB：
+
+| 查询 | 冷 | 热 | 网络读取（冷） |
+|---|---:|---:|---:|
+| 统计 8800 万个地点（只读文件尾） | 0.32 秒 | 0.11 秒 | 0.04 GB |
+| 地点类别排行（1 列，全部地点） | 2.96 秒 | 0.15 秒 | 0.15 GB |
+| 统计 25.3 亿栋建筑（只读文件尾，258 GiB） | 1.28 秒 | 0.70 秒 | 0.43 GB |
+| 在全部建筑上做西雅图坐标框过滤 | 1.23 秒 | 0.58 秒 | 0.43 GB |
+| 全部 25.3 亿栋建筑按类型统计高度 | 79.3 秒 | 1.16 秒 | 2.03 GB |
+| 道路按类别统计（68 GiB） | 16.0 秒 | 0.38 秒 | 0.45 GB |
+| 在道路上做东京坐标框过滤 | 0.67 秒 | 0.20 秒 | 0.25 GB |
+| 把西雅图 34.5 万栋建筑导出为本地 Parquet | 1.49 秒 | 0.74 秒 | 0.50 GB |
+
+即使扫描全部建筑，也只读了 258 GiB 中的 2 GB，因为 DuckDB 只取需要的列，坐标框过滤还会根据统计信息跳过
+文件和行组。热查询完全不再走网络：DuckDB 会缓存已经读过的远程数据。内存峰值一直低于 6 GB。之前在较小实例上
+的两次尝试都在建筑全量扫描时遇到原因不明的实例重启；这次每个查询单独一个进程，每 10 秒记录一次内存，没有再
+重启（可用内存始终高于 120 GB）。
+

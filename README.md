@@ -254,6 +254,9 @@ machines (instances with hundreds of GB of RAM).
 `temp_directory`, run your real top-N queries, and use `EXPLAIN ANALYZE` to see
 time and spill.
 
+Scenario [13](scenarios/13_performance_benchmarks/) measures these limits on
+TPC-H (SF1 to SF1000), ClickBench and a 579 GiB Overture lake on S3.
+
 DuckDB 没有“10GB 以内”或“100GB 以内”这类**官方上限**。能不能高效处理，取决于四件事：查询实际读多少
 字节、中间状态有多大、机器有多少内存和本地磁盘，以及 I/O 带宽。
 
@@ -292,6 +295,9 @@ DuckDB 没有“10GB 以内”或“100GB 以内”这类**官方上限**。能�
 **最可靠的办法是实测**：在目标机型上设好 `memory_limit` 和 `temp_directory`，拿真实的 Top-N 查询跑
 一遍，用 `EXPLAIN ANALYZE` 看耗时和溢写量。
 
+场景 [13](scenarios/13_performance_benchmarks/) 用 TPC-H（SF1 到 SF1000）、ClickBench 和 S3 上 579 GiB 的
+Overture 数据湖实测这些边界。
+
 ## Repo layout · 仓库结构
 
 ```
@@ -320,6 +326,8 @@ scenarios/
                           Glue 6.0 上的 DuckDB ETL -> S3 Tables 托管 Iceberg 表（无需 Spark）
   12_dynamodb_zero_etl/   DynamoDB zero-ETL -> Iceberg on S3 Tables -> DuckDB analytics (Lambda)
                           DynamoDB 零 ETL -> S3 Tables 上的 Iceberg -> DuckDB 分析（Lambda）
+  13_performance_benchmarks/ TPC-H SF1-SF1000, ClickBench, Overture on S3; self-terminating EC2 runners
+                          性能测试：TPC-H SF1-SF1000、ClickBench、S3 上的 Overture；自动终止的 EC2 运行脚本
 specs/                    per-scenario acceptance criteria (SPEC / GOVERNANCE / PIPELINE / ICEBERG / AWS_DUCKDB)
                           各场景验收标准
 tests/                    offline / data-gated / s3-gated pytest suite (CI-run)

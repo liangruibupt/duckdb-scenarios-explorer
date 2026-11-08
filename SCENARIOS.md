@@ -21,6 +21,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 10 | **Aurora PostgreSQL data-lake query (embedded DuckDB)** | AWS GA 2026-09-30: DuckDB embedded *inside Aurora* unions live OLTP rows with Iceberg/Parquet in S3 in one SQL, no reverse-ETL; offline stand-in + real `aurora_analytics` flow | ✅ implemented + tested |
 | 11 | **DuckDB-on-Glue 6.0 ETL → S3 Tables Iceberg** | DuckDB as the Glue 6.0 transform engine (no Spark): clean/cast → append to a managed Iceberg table (snapshots + time-travel); same SQL offline (DuckLake) and on S3 Tables | ✅ implemented + tested |
 | 12 | **DynamoDB zero-ETL → Iceberg → DuckDB** | Zero-ETL replicates DynamoDB (via PITR) into Iceberg on S3 Tables; DuckDB serves analytics in a Lambda; models the attribute-flattening + a read-only engine lockdown | ✅ implemented + tested |
+| 13 | **Performance benchmarks (TPC-H SF1–SF1000, ClickBench, Overture on S3)** | Measured single-node limits: 22 TPC-H queries from 1 GB to ~1 TB on native file vs Parquet, forced spill with a low `memory_limit`, ClickBench's 43 queries, and a 579 GiB S3 lake queried in place; self-terminating EC2 runners | ✅ harness + 🧪 large runs in progress |
 
 | # | 场景 | 展示的 DuckDB 能力 | 状态 |
 |---|------|--------------------|------|
@@ -36,6 +37,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 10 | **Aurora PostgreSQL 数据湖查询（内嵌 DuckDB）** | AWS 2026-09-30 GA：*Aurora 内部*嵌入的 DuckDB 在一条 SQL 里把实时 OLTP 行与 S3 上的 Iceberg/Parquet 做 UNION，无需反向 ETL；离线替身 + 真实 `aurora_analytics` 流程 | ✅ 已实现 + 已测试 |
 | 11 | **Glue 6.0 上的 DuckDB ETL → S3 Tables Iceberg** | DuckDB 作为 Glue 6.0 的转换引擎（无需 Spark）：清洗/转换类型 → 追加写入托管 Iceberg 表（快照 + 时间旅行）；同一份 SQL 可离线跑（DuckLake），也可在 S3 Tables 上跑 | ✅ 已实现 + 已测试 |
 | 12 | **DynamoDB 零 ETL → Iceberg → DuckDB** | 零 ETL 把 DynamoDB（通过 PITR）复制为 S3 Tables 上的 Iceberg；DuckDB 在 Lambda 中提供分析；模拟属性扁平化 + 只读引擎锁定 | ✅ 已实现 + 已测试 |
+| 13 | **性能测试（TPC-H SF1–SF1000、ClickBench、S3 上的 Overture）** | 实测单机边界：TPC-H 22 个查询从 1 GB 到约 1 TB，对比原生文件与 Parquet；用较低的 `memory_limit` 强制溢写；ClickBench 43 个查询；在 S3 上原地查询 579 GiB 数据湖；自动终止的 EC2 运行脚本 | ✅ 测试框架 + 🧪 大规模运行中 |
 
 ---
 
@@ -495,3 +497,38 @@ Iceberg；一个运行 DuckDB 的 Lambda 函数通过 IAM 认证的函数 URL �
 
 业务表继续服务个位数毫秒级的流量；分析在复制出的 Iceberg 副本上运行，Athena/Redshift/EMR/Spark
 也能读取同一份副本。
+
+## 13 — Performance benchmarks · 性能测试 ✅ (harness · 测试框架) 🧪 (large runs · 大规模运行)
+
+`scenarios/13_performance_benchmarks/` · details and results: [README.md](scenarios/13_performance_benchmarks/README.md)
+
+- `bench.py` — TPC-H at any scale factor via the `tpch` extension (chunked
+  `dbgen` so SF100+ fits small machines), the 22 queries on the native file or on
+  Parquet views, per-query time / peak RSS / buffer memory / spill, row counts
+  checked against `tpch_answers()` where reference answers exist (SF ≤ 1).
+- `clickbench.py` — ClickBench `hits` (100M rows, 14.8 GB), 43 queries × 3 runs on
+  Parquet and on a DuckDB table; view and queries fetched from a pinned ClickBench
+  commit (CC BY-NC-SA, not vendored).
+- `overture.py` — 8 queries over the 579 GiB Overture Maps release read in place
+  from S3, recording the GB actually received over the network.
+- `ec2/` — one self-terminating instance per benchmark: NVMe setup, run list,
+  results printed to the console log, `fetch_results.sh` to collect them.
+- Tests: 8 offline (tiny-SF TPC-H on both sources with answer checks, ClickBench
+  view rewriting and summary, Overture query rendering).
+
+First results (DuckDB 2.0.0): TPC-H SF10 runs all 22 queries in 2.9 s (native) /
+7.0 s (Parquet) on an 8 vCPU m8gd.2xlarge with no spill. SF100, SF1000, ClickBench
+and Overture runs are in progress.
+
+- `bench.py`：通过 `tpch` 扩展生成任意规模的 TPC-H（分块 `dbgen`，SF100 以上也能在小机器上生成），在原生
+  文件或 Parquet 视图上跑 22 个查询，记录每个查询的耗时、进程内存峰值、缓冲区内存和溢写量；有参考答案时
+  （SF ≤ 1）用 `tpch_answers()` 核对行数。
+- `clickbench.py`：ClickBench `hits`（1 亿行，14.8 GB），43 个查询各跑 3 次，分别查 Parquet 和 DuckDB 表；视图
+  和查询从固定的 ClickBench 提交拉取（CC BY-NC-SA，不复制进仓库）。
+- `overture.py`：对 579 GiB 的 Overture Maps 版本在 S3 上原地执行 8 个查询，记录实际从网络收到的 GB 数。
+- `ec2/`：每个测试集一台会自动终止的实例：配置 NVMe、执行运行列表、把结果打印到控制台日志，用
+  `fetch_results.sh` 取回。
+- 测试：8 个离线测试（极小规模 TPC-H，两种数据源，带答案核对；ClickBench 视图改写与汇总；Overture 查询渲染）。
+
+首批结果（DuckDB 2.0.0）：在 8 vCPU 的 m8gd.2xlarge 上，TPC-H SF10 的 22 个查询共用 2.9 秒（原生）/ 7.0 秒
+（Parquet），没有溢写。SF100、SF1000、ClickBench 和 Overture 正在运行。

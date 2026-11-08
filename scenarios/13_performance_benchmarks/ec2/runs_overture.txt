@@ -1,1 +1,1 @@
-overture.py --tag m8gd.4xlarge
+overture.py --threads 32 --memory-limit 40GB --tag m8gd.4xlarge

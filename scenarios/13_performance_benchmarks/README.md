@@ -86,7 +86,8 @@ Results still running are marked *pending*.
 | TPC-H SF10 | m8gd.2xlarge (8 vCPU, 31 GB) | 2.9 s | 7.0 s | 2.7 / 1.0 GB | 0 |
 | TPC-H SF100 | r8gd.4xlarge (16 vCPU, 128 GB) | 14.7 s | 36.3 s | 24.8 / 7.6 GB | 0 |
 | TPC-H SF100, `memory_limit=16GB` | r8gd.4xlarge (16 vCPU, 128 GB) | 15.4 s | — | 15.6 GB | 0 |
-| TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | *pending* | *pending* | | |
+| TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | 52.2 s | 168.9 s | 224 / 70 GB | 0 |
+| TPC-H SF1000, `memory_limit=128GB` | r8gd.16xlarge (64 vCPU, 512 GB) | 75.8 s | — | 123 GB | 0 |
 | ClickBench (43 queries, hot) | m8gd.4xlarge (16 vCPU, 64 GB) | 10.6 s | 17.2 s | 24.8 / 8.0 GB | 0 |
 | Overture (S3) | m8gd.4xlarge, us-west-2 | — | *rerun needed* | | |
 
@@ -113,6 +114,21 @@ and exporting it to Parquet 39 s.
 10.6 s on a DuckDB table (after a 34 s load) and 17.2 s directly on the Parquet
 file, with no spill. Q28 (a `REGEXP_REPLACE` over URLs with a high-cardinality
 GROUP BY) is the slowest at 3.5 s / 5.0 s. Downloading the file took 148 s.
+
+**SF1000 (~1 TB raw, 280 GB `.duckdb`, 231 GB Parquet).** All 22 queries pass:
+52.2 s in total on the native file (slowest Q13, 8.9 s) and 168.9 s on Parquet
+(slowest Q18, 33.4 s), with no spill. Going from SF100 to SF1000 (10× the data, 4×
+the cores) took 3.6× longer on the native file. The native run's peak RSS
+(224 GB) is mostly cached database blocks: capping `memory_limit` at 128 GB, less
+than half the 280 GB database, still runs every query without spilling, 45%
+slower (75.8 s). Generating the data took 2.4 h (`dbgen` is close to
+single-threaded) and exporting it to Parquet 2.7 min.
+
+**SF1000（原始约 1 TB，`.duckdb` 280 GB，Parquet 231 GB）。** 22 个查询全部通过：原生文件共 52.2 秒（最慢 Q13，
+8.9 秒），Parquet 共 168.9 秒（最慢 Q18，33.4 秒），都没有溢写。从 SF100 到 SF1000，数据是 10 倍、核数是 4 倍，
+原生文件耗时增加到 3.6 倍。原生运行 224 GB 的内存峰值主要是缓存的数据库块：把 `memory_limit` 限制到 128 GB
+（不到 280 GB 数据库的一半），所有查询仍然不溢写，只慢了 45%（75.8 秒）。生成数据用了 2.4 小时（`dbgen` 基本是
+单线程），导出 Parquet 用了 2.7 分钟。
 
 **Overture.** The first run did not produce results: the instance rebooted about
 two minutes into the benchmark, and user-data does not run again after a reboot.

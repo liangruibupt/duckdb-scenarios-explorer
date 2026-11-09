@@ -520,16 +520,18 @@ Iceberg；一个运行 DuckDB 的 Lambda 函数通过 IAM 认证的函数 URL �
 
 Results (DuckDB 2.0.0, every query passed, no spill in any run):
 
-| Benchmark | Machine | Native `.duckdb` | Parquet |
-|---|---|---:|---:|
-| TPC-H SF10 (22 queries) | m8gd.2xlarge, 8 vCPU / 31 GB | 2.9 s | 7.0 s |
-| TPC-H SF100 | r8gd.4xlarge, 16 vCPU / 128 GB | 14.7 s | 36.3 s |
-| TPC-H SF1000 (~1 TB raw, 280 GB file) | r8gd.16xlarge, 64 vCPU / 512 GB | 52.2 s | 168.9 s |
-| ClickBench (43 queries, hot) | m8gd.4xlarge, 16 vCPU / 64 GB | 10.6 s | 17.2 s |
-| Overture, 579 GiB on S3 (8 queries, cold) | m8gd.8xlarge, 32 vCPU / 128 GB | — | 103.2 s |
+| Benchmark | Machine | Native `.duckdb` | Parquet | Native vs Parquet |
+|---|---|---:|---:|---:|
+| TPC-H SF10 (22 queries) | m8gd.2xlarge, 8 vCPU / 31 GB | 2.9 s | 7.0 s | **2.4× faster** (−59%) |
+| TPC-H SF100 | r8gd.4xlarge, 16 vCPU / 128 GB | 14.7 s | 36.3 s | **2.5× faster** (−60%) |
+| TPC-H SF1000 (~1 TB raw, 280 GB file) | r8gd.16xlarge, 64 vCPU / 512 GB | 52.2 s | 168.9 s | **3.2× faster** (−69%) |
+| ClickBench (43 queries, hot) | m8gd.4xlarge, 16 vCPU / 64 GB | 10.6 s | 17.2 s | **1.6× faster** (−38%) |
+| Overture, 579 GiB on S3 (8 queries, cold) | m8gd.8xlarge, 32 vCPU / 128 GB | — | 103.2 s | — |
 
-Capping `memory_limit` below the database size (16 GB at SF100, 128 GB at
-SF1000) still ran every query without spilling, 5% and 45% slower. On Overture
+The native file's lead over Parquet grows with data size, from 2.4× at SF10 to
+3.2× at SF1000 (percentages are time saved). Capping `memory_limit` below the
+database size (16 GB at SF100, 128 GB at SF1000) still ran every query without
+spilling, 5% and 45% slower. On Overture
 no query read more than 2.1 GB over the network, including a full scan of all
 2.53B buildings. Full numbers and analysis: the
 [scenario README](scenarios/13_performance_benchmarks/README.md).
@@ -547,14 +549,15 @@ no query read more than 2.1 GB over the network, including a full scan of all
 
 结果（DuckDB 2.0.0，所有查询都通过，所有运行都没有溢写）：
 
-| 测试 | 机器 | 原生 `.duckdb` | Parquet |
-|---|---|---:|---:|
-| TPC-H SF10（22 个查询） | m8gd.2xlarge，8 vCPU / 31 GB | 2.9 秒 | 7.0 秒 |
-| TPC-H SF100 | r8gd.4xlarge，16 vCPU / 128 GB | 14.7 秒 | 36.3 秒 |
-| TPC-H SF1000（原始约 1 TB，文件 280 GB） | r8gd.16xlarge，64 vCPU / 512 GB | 52.2 秒 | 168.9 秒 |
-| ClickBench（43 个查询，热） | m8gd.4xlarge，16 vCPU / 64 GB | 10.6 秒 | 17.2 秒 |
-| Overture，S3 上 579 GiB（8 个查询，冷） | m8gd.8xlarge，32 vCPU / 128 GB | — | 103.2 秒 |
+| 测试 | 机器 | 原生 `.duckdb` | Parquet | 原生对比 Parquet |
+|---|---|---:|---:|---:|
+| TPC-H SF10（22 个查询） | m8gd.2xlarge，8 vCPU / 31 GB | 2.9 秒 | 7.0 秒 | **快 2.4 倍**（−59%） |
+| TPC-H SF100 | r8gd.4xlarge，16 vCPU / 128 GB | 14.7 秒 | 36.3 秒 | **快 2.5 倍**（−60%） |
+| TPC-H SF1000（原始约 1 TB，文件 280 GB） | r8gd.16xlarge，64 vCPU / 512 GB | 52.2 秒 | 168.9 秒 | **快 3.2 倍**（−69%） |
+| ClickBench（43 个查询，热） | m8gd.4xlarge，16 vCPU / 64 GB | 10.6 秒 | 17.2 秒 | **快 1.6 倍**（−38%） |
+| Overture，S3 上 579 GiB（8 个查询，冷） | m8gd.8xlarge，32 vCPU / 128 GB | — | 103.2 秒 | — |
 
+数据越大，原生文件领先 Parquet 越多：从 SF10 的 2.4 倍到 SF1000 的 3.2 倍（括号里是节省的时间比例）。
 把 `memory_limit` 设得比数据库还小（SF100 设 16 GB，SF1000 设 128 GB），所有查询仍然不溢写，分别只慢 5% 和
 45%。Overture 上没有一个查询从网络读取超过 2.1 GB，包括对全部 25.3 亿栋建筑的全量扫描。完整数据和分析见
 [场景 README](scenarios/13_performance_benchmarks/README.md)。

@@ -75,21 +75,27 @@ cd scenarios/13_performance_benchmarks/ec2
 ## Results · 结果
 
 DuckDB 2.0.0 throughout. Times are wall-clock seconds for all queries summed.
-Results still running are marked *pending*.
 
-全部使用 DuckDB 2.0.0。耗时为所有查询的总和（秒）。仍在运行的标为 *pending*。
+全部使用 DuckDB 2.0.0。耗时为所有查询的总和（秒）。
 
-| Benchmark | Machine | Native `.duckdb` | Parquet | Peak RSS (native / Parquet) | Spill |
-|---|---|---:|---:|---:|---:|
-| TPC-H SF1 | m8g.xlarge (4 vCPU, 15 GB) | 0.6 s | 1.3 s | 0.34 / 0.32 GB | 0 |
-| TPC-H SF10 | m8g.xlarge (4 vCPU, 15 GB) | 6.9 s | 15.2 s | 2.6 / 0.9 GB | 0 |
-| TPC-H SF10 | m8gd.2xlarge (8 vCPU, 31 GB) | 2.9 s | 7.0 s | 2.7 / 1.0 GB | 0 |
-| TPC-H SF100 | r8gd.4xlarge (16 vCPU, 128 GB) | 14.7 s | 36.3 s | 24.8 / 7.6 GB | 0 |
-| TPC-H SF100, `memory_limit=16GB` | r8gd.4xlarge (16 vCPU, 128 GB) | 15.4 s | — | 15.6 GB | 0 |
-| TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | 52.2 s | 168.9 s | 224 / 70 GB | 0 |
-| TPC-H SF1000, `memory_limit=128GB` | r8gd.16xlarge (64 vCPU, 512 GB) | 75.8 s | — | 123 GB | 0 |
-| ClickBench (43 queries, hot) | m8gd.4xlarge (16 vCPU, 64 GB) | 10.6 s | 17.2 s | 24.8 / 8.0 GB | 0 |
-| Overture on S3 (8 queries, cold) | m8gd.8xlarge (32 vCPU, 128 GB), us-west-2 | — | 103.2 s | 5.6 GB | 0 |
+"Native vs Parquet" is how much faster the same queries run on the native
+`.duckdb` file than on Parquet (the percentage is the time saved). For the
+`memory_limit` rows it is the slowdown against the same run without a cap.
+
+“原生对比 Parquet”一列表示同样的查询在原生 `.duckdb` 文件上比在 Parquet 上快多少倍，括号里是节省的时间比例。
+`memory_limit` 两行则表示与不限内存的同一运行相比慢了多少。
+
+| Benchmark | Machine | Native `.duckdb` | Parquet | Native vs Parquet · 原生对比 Parquet | Peak RSS (native / Parquet) | Spill |
+|---|---|---:|---:|---:|---:|---:|
+| TPC-H SF1 | m8g.xlarge (4 vCPU, 15 GB) | 0.6 s | 1.3 s | **2.2× faster** (−54%) | 0.34 / 0.32 GB | 0 |
+| TPC-H SF10 | m8g.xlarge (4 vCPU, 15 GB) | 6.9 s | 15.2 s | **2.2× faster** (−55%) | 2.6 / 0.9 GB | 0 |
+| TPC-H SF10 | m8gd.2xlarge (8 vCPU, 31 GB) | 2.9 s | 7.0 s | **2.4× faster** (−59%) | 2.7 / 1.0 GB | 0 |
+| TPC-H SF100 | r8gd.4xlarge (16 vCPU, 128 GB) | 14.7 s | 36.3 s | **2.5× faster** (−60%) | 24.8 / 7.6 GB | 0 |
+| TPC-H SF100, `memory_limit=16GB` | r8gd.4xlarge (16 vCPU, 128 GB) | 15.4 s | — | +5% vs no cap | 15.6 GB | 0 |
+| TPC-H SF1000 | r8gd.16xlarge (64 vCPU, 512 GB) | 52.2 s | 168.9 s | **3.2× faster** (−69%) | 224 / 70 GB | 0 |
+| TPC-H SF1000, `memory_limit=128GB` | r8gd.16xlarge (64 vCPU, 512 GB) | 75.8 s | — | +45% vs no cap | 123 GB | 0 |
+| ClickBench (43 queries, hot) | m8gd.4xlarge (16 vCPU, 64 GB) | 10.6 s | 17.2 s | **1.6× faster** (−38%) | 24.8 / 8.0 GB | 0 |
+| Overture on S3 (8 queries, cold) | m8gd.8xlarge (32 vCPU, 128 GB), us-west-2 | — | 103.2 s | — | 5.6 GB | 0 |
 
 Observations so far: at SF10 every query fits comfortably in memory on both
 machines, the native file is about 2× faster than Parquet, and doubling the

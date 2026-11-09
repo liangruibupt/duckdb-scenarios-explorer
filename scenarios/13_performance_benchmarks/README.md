@@ -75,9 +75,8 @@ cd scenarios/13_performance_benchmarks/ec2
 ## Results · 结果
 
 DuckDB 2.0.0 throughout. Times are wall-clock seconds for all queries summed.
-Results still running are marked *pending*.
 
-全部使用 DuckDB 2.0.0。耗时为所有查询的总和（秒）。仍在运行的标为 *pending*。
+全部使用 DuckDB 2.0.0。耗时为所有查询的总和（秒）。
 
 | Benchmark | Machine | Native `.duckdb` | Parquet | Peak RSS (native / Parquet) | Spill |
 |---|---|---:|---:|---:|---:|

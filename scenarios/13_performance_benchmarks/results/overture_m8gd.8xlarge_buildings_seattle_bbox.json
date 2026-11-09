@@ -1,0 +1,36 @@
+{
+  "benchmark": "overture",
+  "release": "2026-10-21.0",
+  "tag": "m8gd.8xlarge_buildings_seattle_bbox",
+  "machine": {
+    "cpus": 32,
+    "ram_gb": 123.5,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8gd.8xlarge"
+  },
+  "config": {
+    "memory_limit": "64GB",
+    "threads": 32
+  },
+  "queries": [
+    {
+      "name": "buildings_seattle_bbox",
+      "what": "bbox filter: row-group statistics skip most of the 258 GiB",
+      "ok": true,
+      "error": null,
+      "cold_seconds": 1.23,
+      "warm_seconds": 0.58,
+      "network_gb_cold": 0.425,
+      "network_gb_warm": 0.0,
+      "result": [
+        [
+          "344908"
+        ]
+      ],
+      "peak_rss_gb": 4.24
+    }
+  ],
+  "queries_ok": 1
+}

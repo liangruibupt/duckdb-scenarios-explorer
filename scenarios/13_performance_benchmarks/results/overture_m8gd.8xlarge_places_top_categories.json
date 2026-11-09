@@ -1,0 +1,113 @@
+{
+  "benchmark": "overture",
+  "release": "2026-10-21.0",
+  "tag": "m8gd.8xlarge_places_top_categories",
+  "machine": {
+    "cpus": 32,
+    "ram_gb": 123.5,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8gd.8xlarge"
+  },
+  "config": {
+    "memory_limit": "64GB",
+    "threads": 32
+  },
+  "queries": [
+    {
+      "name": "places_top_categories",
+      "what": "one-column scan + GROUP BY over all places",
+      "ok": true,
+      "error": null,
+      "cold_seconds": 2.96,
+      "warm_seconds": 0.15,
+      "network_gb_cold": 0.149,
+      "network_gb_warm": 0.0,
+      "result": [
+        [
+          "restaurant",
+          "5900624"
+        ],
+        [
+          "personal_or_beauty_service",
+          "3591379"
+        ],
+        [
+          "home_service",
+          "3259846"
+        ],
+        [
+          "None",
+          "3150720"
+        ],
+        [
+          "fashion_and_apparel_store",
+          "3033203"
+        ],
+        [
+          "professional_service",
+          "2594482"
+        ],
+        [
+          "real_estate_service",
+          "2284873"
+        ],
+        [
+          "financial_service",
+          "2138563"
+        ],
+        [
+          "automotive_service",
+          "2107506"
+        ],
+        [
+          "hardware_home_and_garden_store",
+          "2076393"
+        ],
+        [
+          "food_and_beverage_store",
+          "1896440"
+        ],
+        [
+          "casual_eatery",
+          "1476895"
+        ],
+        [
+          "shopping",
+          "1396833"
+        ],
+        [
+          "hotel",
+          "1326421"
+        ],
+        [
+          "christian_place_of_worship",
+          "1271413"
+        ],
+        [
+          "wellness_service",
+          "1230049"
+        ],
+        [
+          "corporate_or_business_office",
+          "1126407"
+        ],
+        [
+          "event_or_party_service",
+          "1117322"
+        ],
+        [
+          "historic_site",
+          "1061278"
+        ],
+        [
+          "bar",
+          "1044817"
+        ]
+      ],
+      "peak_rss_gb": 1.12
+    }
+  ],
+  "queries_ok": 1
+}

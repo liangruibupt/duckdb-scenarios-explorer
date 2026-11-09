@@ -1,0 +1,117 @@
+{
+  "benchmark": "overture",
+  "release": "2026-10-21.0",
+  "tag": "m8gd.8xlarge_buildings_height_by_subtype",
+  "machine": {
+    "cpus": 32,
+    "ram_gb": 123.5,
+    "platform": "Linux-7.0.0-1014-aws-aarch64-with-glibc2.39",
+    "machine": "aarch64",
+    "duckdb": "2.0.0",
+    "instance_type": "m8gd.8xlarge"
+  },
+  "config": {
+    "memory_limit": "64GB",
+    "threads": 32
+  },
+  "queries": [
+    {
+      "name": "buildings_height_by_subtype",
+      "what": "two-column full scan + aggregate over every building",
+      "ok": true,
+      "error": null,
+      "cold_seconds": 79.29,
+      "warm_seconds": 1.16,
+      "network_gb_cold": 2.032,
+      "network_gb_warm": 0.0,
+      "result": [
+        [
+          "None",
+          "2386023384",
+          "162569789",
+          "4.48"
+        ],
+        [
+          "residential",
+          "119435961",
+          "36688252",
+          "5.46"
+        ],
+        [
+          "outbuilding",
+          "8936715",
+          "719923",
+          "3.75"
+        ],
+        [
+          "commercial",
+          "4898392",
+          "1505606",
+          "6.93"
+        ],
+        [
+          "agricultural",
+          "4670005",
+          "639870",
+          "4.62"
+        ],
+        [
+          "industrial",
+          "3712397",
+          "876888",
+          "6.08"
+        ],
+        [
+          "education",
+          "1818497",
+          "382649",
+          "6.92"
+        ],
+        [
+          "civic",
+          "1170538",
+          "316549",
+          "6.34"
+        ],
+        [
+          "religious",
+          "1156379",
+          "311942",
+          "6.31"
+        ],
+        [
+          "service",
+          "938166",
+          "98573",
+          "6.62"
+        ],
+        [
+          "transportation",
+          "492133",
+          "131246",
+          "5.01"
+        ],
+        [
+          "medical",
+          "318020",
+          "62218",
+          "8.1"
+        ],
+        [
+          "entertainment",
+          "221572",
+          "61146",
+          "7.66"
+        ],
+        [
+          "military",
+          "50453",
+          "2269",
+          "6.4"
+        ]
+      ],
+      "peak_rss_gb": 5.6
+    }
+  ],
+  "queries_ok": 1
+}

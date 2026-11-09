@@ -85,6 +85,56 @@ DuckDB 2.0.0 throughout. Times are wall-clock seconds for all queries summed.
 “原生对比 Parquet”一列表示同样的查询在原生 `.duckdb` 文件上比在 Parquet 上快多少倍，括号里是节省的时间比例。
 `memory_limit` 两行则表示与不限内存的同一运行相比慢了多少。
 
+### How each column reads the data · 每一列怎么读数据
+
+Both columns are DuckDB. They differ in the **file format** and **where the
+file lives**, not in who reads it.
+
+| Benchmark | Native `.duckdb` column | Parquet column | Network in the timed queries |
+|---|---|---|---|
+| TPC-H SF1–SF1000 | The `.duckdb` file `dbgen` wrote, on local NVMe | Parquet exported from that same database, on the same local NVMe, queried through views in a fresh in-memory database | None |
+| ClickBench | `hits.parquet` loaded into a local `.duckdb` file first (load time reported separately) | `hits.parquet` on local NVMe, queried directly | None (the 14.8 GB download happens once, before timing) |
+| Overture | Not measured | Parquet read in place from S3 with `httpfs`; only the needed columns and row groups are fetched | Yes on cold runs, none on warm runs |
+
+So for TPC-H and ClickBench the "Native vs Parquet" ratio compares two file
+formats on the same local disk. Only the Overture numbers include S3 latency
+and bandwidth.
+
+**Caching.** None of the harnesses clears caches between queries, so read the
+numbers as warm rather than cold-from-disk:
+
+| Benchmark | Runs per query | What is cached |
+|---|---|---|
+| TPC-H | 1 | DuckDB keeps blocks it has read in its buffer pool and reuses them in later queries; most of the native run's peak RSS (224 GB at SF1000) is these cached blocks. The files were written just before the queries, so much of them is likely still in the OS page cache, which helps both columns. The page cache is not dropped before queries. |
+| ClickBench | 3 | The table reports **hot** time (best of runs 2–3), so both columns run on cached data. Cold times are in the JSON. |
+| Overture | 2 | The table reports **cold** time, which includes fetching from S3. The warm run reads 0 GB over the network because DuckDB caches the remote data. |
+
+Not dropping the page cache makes TPC-H's absolute times optimistic. Its effect
+on the native-vs-Parquet ratio should be smaller, because both columns benefit,
+but that has not been measured separately.
+
+两列都是 DuckDB 在读，区别在于**文件格式**和**文件放在哪里**，不在于由谁来读。
+
+| 测试 | 原生 `.duckdb` 列 | Parquet 列 | 计时查询中是否走网络 |
+|---|---|---|---|
+| TPC-H SF1–SF1000 | `dbgen` 生成的 `.duckdb` 文件，在本地 NVMe 上 | 由同一个数据库导出的 Parquet，在同一块本地 NVMe 上，在一个新的内存数据库里通过视图查询 | 不走 |
+| ClickBench | 先把 `hits.parquet` 导入本地 `.duckdb` 文件（导入耗时单独记录） | 直接查本地 NVMe 上的 `hits.parquet` | 不走（14.8 GB 的下载只做一次，在计时之前） |
+| Overture | 未测 | 用 `httpfs` 直接读 S3 上的 Parquet，只取需要的列和行组 | 冷查询走网络，热查询不走 |
+
+因此，TPC-H 和 ClickBench 的“原生对比 Parquet”比较的是同一块本地盘上两种文件格式的差别。只有 Overture 的
+数字包含 S3 的网络延迟和带宽。
+
+**缓存。** 各测试脚本都没有在查询之间清空缓存，所以这些数字是热数据下的表现，不是从磁盘冷读：
+
+| 测试 | 每个查询跑几次 | 缓存了什么 |
+|---|---|---|
+| TPC-H | 1 次 | DuckDB 会把读过的块留在缓冲池里，后面的查询可以复用；原生运行的内存峰值（SF1000 为 224 GB）大部分就是这些缓存块。文件在查询前刚生成或刚导出，很可能大部分还在操作系统页缓存里，两列都会因此受益。查询前没有清空页缓存。 |
+| ClickBench | 3 次 | 表里是**热**时间（第 2、3 次中最快的），两列都在缓存数据上运行。冷时间在 JSON 里。 |
+| Overture | 2 次 | 表里是**冷**时间，包含从 S3 拉取数据。热查询的网络读取为 0 GB，因为 DuckDB 缓存了远程数据。 |
+
+没有清空页缓存会让 TPC-H 的绝对耗时偏乐观。对“原生对比 Parquet”倍数的影响应该较小，因为两列都受益，但这一点
+没有单独测过。
+
 | Benchmark | Machine | Native `.duckdb` | Parquet | Native vs Parquet · 原生对比 Parquet | Peak RSS (native / Parquet) | Spill |
 |---|---|---:|---:|---:|---:|---:|
 | TPC-H SF1 | m8g.xlarge (4 vCPU, 15 GB) | 0.6 s | 1.3 s | **2.2× faster** (−54%) | 0.34 / 0.32 GB | 0 |

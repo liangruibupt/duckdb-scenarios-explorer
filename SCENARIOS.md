@@ -533,8 +533,14 @@ The native file's lead over Parquet grows with data size, from 2.4× at SF10 to
 database size (16 GB at SF100, 128 GB at SF1000) still ran every query without
 spilling, 5% and 45% slower. On Overture
 no query read more than 2.1 GB over the network, including a full scan of all
-2.53B buildings. Full numbers and analysis: the
-[scenario README](scenarios/13_performance_benchmarks/README.md).
+2.53B buildings.
+
+Both columns are DuckDB reading a different file format. For TPC-H and
+ClickBench both files sit on the same local NVMe disk, so the ratio compares
+formats only; only Overture reads over the network (from S3). Caches are not
+cleared between queries, so the TPC-H times are warm rather than
+cold-from-disk. Full numbers, read paths and caching details: the
+[scenario README](scenarios/13_performance_benchmarks/README.md#how-each-column-reads-the-data--每一列怎么读数据).
 
 - `bench.py`：通过 `tpch` 扩展生成任意规模的 TPC-H（分块 `dbgen`，SF100 以上也能在小机器上生成），在原生
   文件或 Parquet 视图上跑 22 个查询，记录每个查询的耗时、进程内存峰值、缓冲区内存和溢写量；有参考答案时
@@ -559,5 +565,9 @@ no query read more than 2.1 GB over the network, including a full scan of all
 
 数据越大，原生文件领先 Parquet 越多：从 SF10 的 2.4 倍到 SF1000 的 3.2 倍（括号里是节省的时间比例）。
 把 `memory_limit` 设得比数据库还小（SF100 设 16 GB，SF1000 设 128 GB），所有查询仍然不溢写，分别只慢 5% 和
-45%。Overture 上没有一个查询从网络读取超过 2.1 GB，包括对全部 25.3 亿栋建筑的全量扫描。完整数据和分析见
-[场景 README](scenarios/13_performance_benchmarks/README.md)。
+45%。Overture 上没有一个查询从网络读取超过 2.1 GB，包括对全部 25.3 亿栋建筑的全量扫描。
+
+两列都是 DuckDB 在读，只是文件格式不同。TPC-H 和 ClickBench 的两种文件都在同一块本地 NVMe 盘上，所以倍数只反映
+格式差别；只有 Overture 走网络（读 S3）。查询之间没有清空缓存，所以 TPC-H 的耗时是热数据下的表现，不是从磁盘
+冷读。完整数据、读取方式和缓存说明见
+[场景 README](scenarios/13_performance_benchmarks/README.md#how-each-column-reads-the-data--每一列怎么读数据)。

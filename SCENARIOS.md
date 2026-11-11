@@ -22,6 +22,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 11 | **DuckDB-on-Glue 6.0 ETL → S3 Tables Iceberg** | DuckDB as the Glue 6.0 transform engine (no Spark): clean/cast → append to a managed Iceberg table (snapshots + time-travel); same SQL offline (DuckLake) and on S3 Tables | ✅ implemented + tested |
 | 12 | **DynamoDB zero-ETL → Iceberg → DuckDB** | Zero-ETL replicates DynamoDB (via PITR) into Iceberg on S3 Tables; DuckDB serves analytics in a Lambda; models the attribute-flattening + a read-only engine lockdown | ✅ implemented + tested |
 | 13 | **Performance benchmarks (TPC-H SF1–SF1000, ClickBench, Overture on S3)** | Measured single-node limits: 22 TPC-H queries from 1 GB to ~1 TB on native file vs Parquet, forced spill with a low `memory_limit`, ClickBench's 43 queries, and a 579 GiB S3 lake queried in place; self-terminating EC2 runners | ✅ implemented + measured |
+| 14 | **Lake Formation governance + lake / non-lake join** | Lake Formation grants (Table, TableWithColumns, DataCellsFilter, TableWildcard) compiled into scenario 08's RLS/CLS policies, fail-closed; a registered tool lands non-lake rows as an owner-bound handle that is joined with governed lake tables in one session | ✅ implemented + tested |
 
 | # | 场景 | 展示的 DuckDB 能力 | 状态 |
 |---|------|--------------------|------|
@@ -38,6 +39,7 @@ Status legend: ✅ implemented · 🧪 proposed / next · 💡 idea
 | 11 | **Glue 6.0 上的 DuckDB ETL → S3 Tables Iceberg** | DuckDB 作为 Glue 6.0 的转换引擎（无需 Spark）：清洗/转换类型 → 追加写入托管 Iceberg 表（快照 + 时间旅行）；同一份 SQL 可离线跑（DuckLake），也可在 S3 Tables 上跑 | ✅ 已实现 + 已测试 |
 | 12 | **DynamoDB 零 ETL → Iceberg → DuckDB** | 零 ETL 把 DynamoDB（通过 PITR）复制为 S3 Tables 上的 Iceberg；DuckDB 在 Lambda 中提供分析；模拟属性扁平化 + 只读引擎锁定 | ✅ 已实现 + 已测试 |
 | 13 | **性能测试（TPC-H SF1–SF1000、ClickBench、S3 上的 Overture）** | 实测单机边界：TPC-H 22 个查询从 1 GB 到约 1 TB，对比原生文件与 Parquet；用较低的 `memory_limit` 强制溢写；ClickBench 43 个查询；在 S3 上原地查询 579 GiB 数据湖；自动终止的 EC2 运行脚本 | ✅ 已实现 + 已实测 |
+| 14 | **Lake Formation 治理 + 湖内外数据 join** | 把 Lake Formation 授权（Table、TableWithColumns、DataCellsFilter、TableWildcard）编译成场景 08 的行列级策略，失败即拒绝；注册工具把非湖数据落成绑定属主的句柄，在同一会话里与受治理的湖表 join | ✅ 已实现 + 已测试 |
 
 ---
 
@@ -571,3 +573,40 @@ cold-from-disk. Full numbers, read paths and caching details: the
 格式差别；只有 Overture 走网络（读 S3）。查询之间没有清空缓存，所以 TPC-H 的耗时是热数据下的表现，不是从磁盘
 冷读。完整数据、读取方式和缓存说明见
 [场景 README](scenarios/13_performance_benchmarks/README.md#how-each-column-reads-the-data--每一列怎么读数据)。
+
+## 14 — Lake Formation governance + lake / non-lake join · Lake Formation 治理 + 湖内外数据 join ✅
+
+`scenarios/14_lf_governance_federation/` · details: [README.md](scenarios/14_lf_governance_federation/README.md)
+
+Fills the two gaps the [AgentCore DuckDB data agent article](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)
+describes that scenario 08 did not cover.
+
+- `lf_policy.py` — compiles a Lake Formation snapshot into scenario 08 `Policy`
+  objects: SELECT-only, data-cell filters become row filters, column scopes become
+  deny-lists, several grants union, and an unparseable filter or unknown table drops
+  the table (fail-closed).
+- `fetch_lf.py` — builds the snapshot from a live account with read-only APIs.
+- `federation.py` — `FederatedSession`: registered tools into a non-lake source (the
+  article's AgentCore Gateway), tenant bound from the session, results landed as
+  owner-bound `_x_<n>` handles, and every query (lake tables + handles) governed and
+  cost-gated.
+- `demo.py` — offline: DuckLake lake + SQLite CRM; `--s3tables-arn` for a real S3
+  Tables bucket.
+- Tests: 15 offline (grant mapping, union, fail-closed cases, tenant binding, tool
+  allow-list, foreign-handle refusal, governed join, `SELECT *` in subqueries/CTEs).
+
+Also fixes scenario 08's `SELECT *` rewrite: it now excludes only the denied columns
+of the tables that `SELECT` reads, because DuckDB rejects an `EXCLUDE` naming a column
+none of its tables has.
+
+- `lf_policy.py`：把 Lake Formation 快照编译成场景 08 的 `Policy`：只认 SELECT，数据单元格过滤器变成行过滤，列范围变成
+  禁止列，多条授权取并集，解析不了的过滤条件或未知的表会让这张表被拒绝（失败即拒绝）。
+- `fetch_lf.py`：用只读 API 从真实账号生成快照。
+- `federation.py`：`FederatedSession`：调用非湖数据源的注册工具（对应文章里的 AgentCore Gateway），租户取自会话，结果落成
+  绑定属主的 `_x_<n>` 句柄，每条查询（湖表 + 句柄）都经过治理和成本闸门。
+- `demo.py`：离线用 DuckLake 作湖、SQLite 作 CRM；用 `--s3tables-arn` 接真实的 S3 Tables 存储桶。
+- 测试：15 个离线测试（授权映射、并集、失败即拒绝的情况、租户绑定、工具允许列表、拒绝他人句柄、受治理的 join、子查询和
+  CTE 里的 `SELECT *`）。
+
+同时修复了场景 08 的 `SELECT *` 改写：现在只排除该 `SELECT` 实际读取的表里的禁止列，因为如果 `EXCLUDE` 里的列在它读取的
+表中都不存在，DuckDB 会报错。

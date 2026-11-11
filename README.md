@@ -41,6 +41,20 @@ about the "production-shaped" version of a scenario here, read that sample.
 
 ### Companion article: the 6+1 architecture · 配套文章：6+1 分层架构
 
+**Coverage at a glance · 覆盖一览**
+
+| Layer · 层 | Runnable here · 本仓库可运行的演示 | Status · 状态 |
+|---|---|---|
+| L1 Scheduling · 调度 | 07 | ◐ one embedded engine per agent; no AgentCore Identity / JWT / microVM · 每个智能体一个内嵌引擎；不含 AgentCore Identity / JWT / microVM |
+| L2 Semantic · 语义 | 08 (`semantic.py`) | ✅ |
+| L3 Context · 上下文 | 08 (`context.py`) | ◐ cost gate, result handles, history compression; no data map / session budget · 成本闸门、结果句柄、历史压缩；不含数据地图和会话预算 |
+| L4 Governance · 治理 | 08 (`governance.py`, matrix), **14** (Lake Formation as policy source) | ✅ |
+| L5 Compute · 计算 | 04, 05, 07, 13, **14** (lake + non-lake join) | ✅ |
+| L6 Storage · 存储 | 02, 09, 11, 12 | ✅ |
+| +1 Evaluation and operations · 评测运营 | 08 matrix + offline pytest suite in CI · 08 治理矩阵 + CI 中的离线测试 | ◐ no online buckets by source · 不含在线按来源分桶 |
+
+✅ covered · 已覆盖　◐ partly covered · 部分覆盖
+
 The sample's design is written up in the AWS China blog post
 **[在 Amazon Bedrock AgentCore 上构建受治理的进程内 DuckDB Data Agent](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)**
 (Building a governed in-process DuckDB data agent on Amazon Bedrock AgentCore).
@@ -66,15 +80,14 @@ layers:
 | L1 Scheduling | 1 session = 1 microVM = 1 engine; inbound JWT authorizer; session bound to its owner | [07](scenarios/07_multiagent_agentcore/) (one embedded engine per agent; no JWT / microVM) |
 | L2 Semantic | Registered metrics compile to governed `SELECT`s; metric definitions and table cards in the customer's Git | [08](scenarios/08_governance/) (`semantic.py`) |
 | L3 Context | Data map, cost gate, large results kept in the engine, history compressed to pointers, session budget | [08](scenarios/08_governance/) (`context.py`: cost gate, result handles, history compression) |
-| L4 Governance | RLS/CLS rewritten into every SQL, fail-closed; Lake Formation is the policy authority | [08](scenarios/08_governance/) (`governance.py`, governance matrix) |
-| L5 Compute | In-process DuckDB; session working set; external-source results joined as session handles | [04](scenarios/04_chat_bi/), [05](scenarios/05_sql_over_dataframes/), [07](scenarios/07_multiagent_agentcore/), [13](scenarios/13_performance_benchmarks/) |
+| L4 Governance | RLS/CLS rewritten into every SQL, fail-closed; Lake Formation is the policy authority | [08](scenarios/08_governance/) (`governance.py`, governance matrix), [14](scenarios/14_lf_governance_federation/) (Lake Formation grants compiled into the same policies) |
+| L5 Compute | In-process DuckDB; session working set; external-source results joined as session handles | [04](scenarios/04_chat_bi/), [05](scenarios/05_sql_over_dataframes/), [07](scenarios/07_multiagent_agentcore/), [13](scenarios/13_performance_benchmarks/), [14](scenarios/14_lf_governance_federation/) (registered tool → session handle → governed join) |
 | L6 Storage | Amazon S3 Tables (managed Iceberg) read in place | [02](scenarios/02_httpfs_s3/), [09](scenarios/09_iceberg/), [11](scenarios/11_glue_duckdb_etl/), [12](scenarios/12_dynamodb_zero_etl/) |
 | +1 Evaluation and operations | Governance matrix and evals in CI; online buckets by source | [08](scenarios/08_governance/) matrix + the offline pytest suite in CI |
 
-Not covered here: Lake Formation as the policy source (scenario 08 uses an
-in-code policy), AgentCore Identity / JWT and per-session microVMs, the
-AgentCore Gateway join of non-lake sources, the auto-generated data map and the
-session budget. Use the sample for those parts.
+Not covered here: AgentCore Identity / JWT and per-session microVMs, a real
+AgentCore Gateway (scenario 14 uses a local registered tool in its place), the
+auto-generated data map and the session budget. Use the sample for those parts.
 
 样例的设计写成了一篇 AWS 中国博客文章
 **[在 Amazon Bedrock AgentCore 上构建受治理的进程内 DuckDB Data Agent](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)**。
@@ -94,13 +107,13 @@ session budget. Use the sample for those parts.
 | L1 调度 | 1 会话 = 1 microVM = 1 引擎；入站 JWT 授权器；会话绑定属主 | [07](scenarios/07_multiagent_agentcore/)（每个智能体一个内嵌引擎；不含 JWT / microVM） |
 | L2 语义 | 注册指标确定性编译成受治理的 `SELECT`；指标定义和表卡归客户的 Git | [08](scenarios/08_governance/)（`semantic.py`） |
 | L3 上下文 | 数据地图、成本闸门、超大结果留在引擎内、历史压缩成指针、会话预算 | [08](scenarios/08_governance/)（`context.py`：成本闸门、结果句柄、历史压缩） |
-| L4 治理 | RLS/CLS 重写进每条 SQL，失败即拒绝；Lake Formation 为策略权威 | [08](scenarios/08_governance/)（`governance.py`、治理矩阵） |
-| L5 计算 | 进程内 DuckDB；会话工作集；外部源结果作为会话句柄合流 | [04](scenarios/04_chat_bi/)、[05](scenarios/05_sql_over_dataframes/)、[07](scenarios/07_multiagent_agentcore/)、[13](scenarios/13_performance_benchmarks/) |
+| L4 治理 | RLS/CLS 重写进每条 SQL，失败即拒绝；Lake Formation 为策略权威 | [08](scenarios/08_governance/)（`governance.py`、治理矩阵）、[14](scenarios/14_lf_governance_federation/)（把 Lake Formation 授权编译成同一套策略） |
+| L5 计算 | 进程内 DuckDB；会话工作集；外部源结果作为会话句柄合流 | [04](scenarios/04_chat_bi/)、[05](scenarios/05_sql_over_dataframes/)、[07](scenarios/07_multiagent_agentcore/)、[13](scenarios/13_performance_benchmarks/)、[14](scenarios/14_lf_governance_federation/)（注册工具 → 会话句柄 → 受治理的 join） |
 | L6 存储 | Amazon S3 Tables（托管 Iceberg）就地读取 | [02](scenarios/02_httpfs_s3/)、[09](scenarios/09_iceberg/)、[11](scenarios/11_glue_duckdb_etl/)、[12](scenarios/12_dynamodb_zero_etl/) |
 | +1 评测运营 | 治理矩阵与评测进 CI；在线按来源分桶 | [08](scenarios/08_governance/) 治理矩阵 + CI 中的离线 pytest 测试 |
 
-本仓库没有覆盖的部分：以 Lake Formation 作为策略来源（场景 08 用的是代码内的策略）、AgentCore Identity / JWT 与
-每会话一个 microVM、经 AgentCore Gateway 接入非湖数据源后的 join、自动生成的数据地图和会话预算。这些部分请参考样例代码。
+本仓库没有覆盖的部分：AgentCore Identity / JWT 与每会话一个 microVM、真实的 AgentCore Gateway（场景 14 用本地
+注册工具代替）、自动生成的数据地图和会话预算。这些部分请参考样例代码。
 
 ## Quick start · 快速开始
 
@@ -391,6 +404,8 @@ scenarios/
                           DynamoDB 零 ETL -> S3 Tables 上的 Iceberg -> DuckDB 分析（Lambda）
   13_performance_benchmarks/ TPC-H SF1-SF1000, ClickBench, Overture on S3; self-terminating EC2 runners
                           性能测试：TPC-H SF1-SF1000、ClickBench、S3 上的 Overture；自动终止的 EC2 运行脚本
+  14_lf_governance_federation/ Lake Formation grants -> RLS/CLS policies; lake + non-lake join via registered tool
+                          Lake Formation 授权 -> 行列级策略；通过注册工具 join 湖上与非湖数据
 specs/                    per-scenario acceptance criteria (SPEC / GOVERNANCE / PIPELINE / ICEBERG / AWS_DUCKDB)
                           各场景验收标准
 tests/                    offline / data-gated / s3-gated pytest suite (CI-run)

@@ -1,0 +1,147 @@
+{
+  "_comment": "Offline stand-in for a Lake Formation account. Shapes follow the read-only APIs: lakeformation list-permissions (PrincipalResourcePermissions), lakeformation list-data-cells-filter (DataCellsFilters) and glue get-tables (columns). Account ID is a placeholder.",
+  "tables": {
+    "sales.orders": [
+      "order_id",
+      "tenant",
+      "account_id",
+      "order_date",
+      "amount",
+      "card_number"
+    ],
+    "sales.refunds": [
+      "refund_id",
+      "tenant",
+      "order_id",
+      "amount",
+      "reason"
+    ]
+  },
+  "cell_filters": [
+    {
+      "TableCatalogId": "111122223333",
+      "DatabaseName": "sales",
+      "TableName": "orders",
+      "Name": "acme_rows_no_card",
+      "RowFilter": {
+        "FilterExpression": "tenant = 'acme'"
+      },
+      "ColumnWildcard": {
+        "ExcludedColumnNames": [
+          "card_number"
+        ]
+      }
+    },
+    {
+      "TableCatalogId": "111122223333",
+      "DatabaseName": "sales",
+      "TableName": "orders",
+      "Name": "globex_rows_no_card",
+      "RowFilter": {
+        "FilterExpression": "tenant = 'globex'"
+      },
+      "ColumnWildcard": {
+        "ExcludedColumnNames": [
+          "card_number"
+        ]
+      }
+    }
+  ],
+  "permissions": [
+    {
+      "Principal": {
+        "DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/acme-analyst"
+      },
+      "Resource": {
+        "DataCellsFilter": {
+          "TableCatalogId": "111122223333",
+          "DatabaseName": "sales",
+          "TableName": "orders",
+          "Name": "acme_rows_no_card"
+        }
+      },
+      "Permissions": [
+        "SELECT"
+      ],
+      "PermissionsWithGrantOption": []
+    },
+    {
+      "Principal": {
+        "DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/acme-analyst"
+      },
+      "Resource": {
+        "TableWithColumns": {
+          "CatalogId": "111122223333",
+          "DatabaseName": "sales",
+          "Name": "refunds",
+          "ColumnNames": [
+            "refund_id",
+            "tenant",
+            "order_id",
+            "amount"
+          ]
+        }
+      },
+      "Permissions": [
+        "SELECT"
+      ],
+      "PermissionsWithGrantOption": []
+    },
+    {
+      "Principal": {
+        "DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/globex-analyst"
+      },
+      "Resource": {
+        "DataCellsFilter": {
+          "TableCatalogId": "111122223333",
+          "DatabaseName": "sales",
+          "TableName": "orders",
+          "Name": "globex_rows_no_card"
+        }
+      },
+      "Permissions": [
+        "SELECT"
+      ],
+      "PermissionsWithGrantOption": []
+    },
+    {
+      "Principal": {
+        "DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/acme-viewer"
+      },
+      "Resource": {
+        "Table": {
+          "CatalogId": "111122223333",
+          "DatabaseName": "sales",
+          "Name": "orders"
+        }
+      },
+      "Permissions": [
+        "DESCRIBE"
+      ],
+      "PermissionsWithGrantOption": []
+    },
+    {
+      "Principal": {
+        "DataLakePrincipalIdentifier": "arn:aws:iam::111122223333:role/finance-auditor"
+      },
+      "Resource": {
+        "Table": {
+          "CatalogId": "111122223333",
+          "DatabaseName": "sales",
+          "TableWildcard": {}
+        }
+      },
+      "Permissions": [
+        "SELECT",
+        "DESCRIBE"
+      ],
+      "PermissionsWithGrantOption": []
+    }
+  ],
+  "principal_map": {
+    "arn:aws:iam::111122223333:role/acme-analyst": "acme:analyst",
+    "arn:aws:iam::111122223333:role/globex-analyst": "globex:analyst",
+    "arn:aws:iam::111122223333:role/acme-viewer": "acme:viewer",
+    "arn:aws:iam::111122223333:role/finance-auditor": "acme:auditor"
+  }
+}

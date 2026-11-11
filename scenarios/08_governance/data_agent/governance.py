@@ -121,12 +121,19 @@ def govern(sql: str, policy: Policy) -> str:
         if col.name in all_denied:
             raise GovernanceError(
                 f"column '{col.name}' denied for this role")
-    # add EXCLUDE(denied...) onto SELECT * so `SELECT *` cannot leak them
+    # add EXCLUDE(denied...) onto SELECT * so `SELECT *` cannot leak them.
+    # Only the denied columns of tables this SELECT reads are excluded: DuckDB
+    # rejects an EXCLUDE naming a column none of its FROM tables has.
     if all_denied:
         for star in tree.find_all(exp.Star):
             parent = star.parent
             if isinstance(parent, exp.Select):
-                cols = ", ".join(sorted(all_denied))
+                read = {t.name for t in parent.find_all(exp.Table)
+                        if t.find_ancestor(exp.Select) is parent}
+                cols_here = set().union(*(denied_by_table.get(t, set()) for t in read))
+                if not cols_here:
+                    continue
+                cols = ", ".join(sorted(cols_here))
                 star.replace(sqlglot.parse_one(f"* EXCLUDE ({cols})", dialect=DIALECT))
 
     # 5) RLS: AND each table's row_filter into the query's WHERE

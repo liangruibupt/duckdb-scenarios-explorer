@@ -39,6 +39,69 @@ about the "production-shaped" version of a scenario here, read that sample.
 以及 Iceberg 系列（02/03/06/09）对应该设计的五层：**计算、治理、上下文、语义、调度/身份**，
 做成小而独立、按规格驱动、可单独运行的演示。想了解某个场景的“生产级”形态时，请阅读该示例。
 
+### Companion article: the 6+1 architecture · 配套文章：6+1 分层架构
+
+The sample's design is written up in the AWS China blog post
+**[在 Amazon Bedrock AgentCore 上构建受治理的进程内 DuckDB Data Agent](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)**
+(Building a governed in-process DuckDB data agent on Amazon Bedrock AgentCore).
+Its three architecture choices:
+
+- **Engine in the agent process.** DuckDB is embedded in the agent running on
+  AgentCore and reads Amazon S3 Tables in place through the Iceberg REST endpoint,
+  so no copy of the data is made for the agent. Results from non-lake sources
+  (reached through AgentCore Gateway) land as caller-bound session handles and
+  are joined with lake data in the same session working set.
+- **Governance before the engine.** Row- and column-level permissions, with
+  AWS Lake Formation as the policy authority, are compiled into each SQL
+  statement before it reaches the engine, fail-closed. The model cannot query
+  past its permissions however it writes the SQL.
+- **6+1 layers**: scheduling, semantic, context, governance, compute and storage,
+  plus evaluation and operations.
+
+The article explains the design; this repo has small runnable versions of most
+layers:
+
+| Layer | What the article puts there | Scenarios here |
+|---|---|---|
+| L1 Scheduling | 1 session = 1 microVM = 1 engine; inbound JWT authorizer; session bound to its owner | [07](scenarios/07_multiagent_agentcore/) (one embedded engine per agent; no JWT / microVM) |
+| L2 Semantic | Registered metrics compile to governed `SELECT`s; metric definitions and table cards in the customer's Git | [08](scenarios/08_governance/) (`semantic.py`) |
+| L3 Context | Data map, cost gate, large results kept in the engine, history compressed to pointers, session budget | [08](scenarios/08_governance/) (`context.py`: cost gate, result handles, history compression) |
+| L4 Governance | RLS/CLS rewritten into every SQL, fail-closed; Lake Formation is the policy authority | [08](scenarios/08_governance/) (`governance.py`, governance matrix) |
+| L5 Compute | In-process DuckDB; session working set; external-source results joined as session handles | [04](scenarios/04_chat_bi/), [05](scenarios/05_sql_over_dataframes/), [07](scenarios/07_multiagent_agentcore/), [13](scenarios/13_performance_benchmarks/) |
+| L6 Storage | Amazon S3 Tables (managed Iceberg) read in place | [02](scenarios/02_httpfs_s3/), [09](scenarios/09_iceberg/), [11](scenarios/11_glue_duckdb_etl/), [12](scenarios/12_dynamodb_zero_etl/) |
+| +1 Evaluation and operations | Governance matrix and evals in CI; online buckets by source | [08](scenarios/08_governance/) matrix + the offline pytest suite in CI |
+
+Not covered here: Lake Formation as the policy source (scenario 08 uses an
+in-code policy), AgentCore Identity / JWT and per-session microVMs, the
+AgentCore Gateway join of non-lake sources, the auto-generated data map and the
+session budget. Use the sample for those parts.
+
+样例的设计写成了一篇 AWS 中国博客文章
+**[在 Amazon Bedrock AgentCore 上构建受治理的进程内 DuckDB Data Agent](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)**。
+文中的三个架构选择：
+
+- **引擎放进 agent 进程**：DuckDB 嵌入运行在 AgentCore 上的 agent 进程，经 Iceberg REST endpoint 就地读取
+  Amazon S3 Tables，不为 agent 另搬一份数据。经 AgentCore Gateway 接入的非湖数据源，结果落成绑定调用者的会话句柄，
+  再与湖上数据在同一个会话工作集里 join。
+- **治理在引擎之前**：行列级权限以 AWS Lake Formation 为策略权威，在每条 SQL 进入引擎之前编译进语句，失败即拒绝。
+  模型无论怎么写 SQL，都越不了权。
+- **6+1 分层**：调度、语义、上下文、治理、计算、存储，加上评测与运营。
+
+文章讲设计，本仓库为其中大部分层提供了可运行的小型演示：
+
+| 层 | 文章中的关键机制 | 本仓库对应场景 |
+|---|---|---|
+| L1 调度 | 1 会话 = 1 microVM = 1 引擎；入站 JWT 授权器；会话绑定属主 | [07](scenarios/07_multiagent_agentcore/)（每个智能体一个内嵌引擎；不含 JWT / microVM） |
+| L2 语义 | 注册指标确定性编译成受治理的 `SELECT`；指标定义和表卡归客户的 Git | [08](scenarios/08_governance/)（`semantic.py`） |
+| L3 上下文 | 数据地图、成本闸门、超大结果留在引擎内、历史压缩成指针、会话预算 | [08](scenarios/08_governance/)（`context.py`：成本闸门、结果句柄、历史压缩） |
+| L4 治理 | RLS/CLS 重写进每条 SQL，失败即拒绝；Lake Formation 为策略权威 | [08](scenarios/08_governance/)（`governance.py`、治理矩阵） |
+| L5 计算 | 进程内 DuckDB；会话工作集；外部源结果作为会话句柄合流 | [04](scenarios/04_chat_bi/)、[05](scenarios/05_sql_over_dataframes/)、[07](scenarios/07_multiagent_agentcore/)、[13](scenarios/13_performance_benchmarks/) |
+| L6 存储 | Amazon S3 Tables（托管 Iceberg）就地读取 | [02](scenarios/02_httpfs_s3/)、[09](scenarios/09_iceberg/)、[11](scenarios/11_glue_duckdb_etl/)、[12](scenarios/12_dynamodb_zero_etl/) |
+| +1 评测运营 | 治理矩阵与评测进 CI；在线按来源分桶 | [08](scenarios/08_governance/) 治理矩阵 + CI 中的离线 pytest 测试 |
+
+本仓库没有覆盖的部分：以 Lake Formation 作为策略来源（场景 08 用的是代码内的策略）、AgentCore Identity / JWT 与
+每会话一个 microVM、经 AgentCore Gateway 接入非湖数据源后的 join、自动生成的数据地图和会话预算。这些部分请参考样例代码。
+
 ## Quick start · 快速开始
 
 ```bash
@@ -343,6 +406,10 @@ SCENARIOS.md
   AgentCore; raw Parquet / S3 Tables / Glue / DuckLake access paths).
   主要参考：运行在 Amazon Bedrock AgentCore 上、带治理的 DuckDB 数据智能体，支持原始 Parquet /
   S3 Tables / Glue / DuckLake 访问路径。
+- **[在 Amazon Bedrock AgentCore 上构建受治理的进程内 DuckDB Data Agent](https://aws.amazon.com/cn/blogs/china/amazon-bedrock-agentcore-build-governance-duckdb-data-agent/)**
+  — AWS China blog post describing the sample's 6+1 layered architecture (see
+  [Companion article](#companion-article-the-61-architecture--配套文章61-分层架构) above).
+  介绍该样例 6+1 分层架构的 AWS 中国博客文章（见上文“配套文章”一节）。
 - [Apache Iceberg spec](https://iceberg.apache.org/spec) · [evolution](https://iceberg.apache.org/docs/latest/evolution) · [reliability](https://iceberg.apache.org/docs/latest/reliability)
   — the table-format mechanism behind scenario 09 (see
   [WHY_ICEBERG.md](scenarios/09_iceberg/docs/WHY_ICEBERG.md)).
